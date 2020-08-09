@@ -7,8 +7,8 @@ namespace NNLib
     public class SGDOptimizer : IOptimizer
     {
         private double learningRate;
-        private List<Matrix> gradientsWeights = new List<Matrix>();
-        private List<Matrix> gradientsBias = new List<Matrix>();
+        private List<Tensor> gradientsWeights = new List<Tensor>();
+        private List<Tensor> gradientsBias = new List<Tensor>();
 
         private bool compiled;
         private int numberOfLayers;
@@ -18,7 +18,7 @@ namespace NNLib
             this.learningRate = learningRate;
         }
 
-        public void AddLayer(Matrix weights, Matrix bias)
+        public void AddLayer(Tensor weights, Tensor bias)
         {
             if (compiled == true)
                 throw new InvalidOperationException("Optimizer already compiled!");
@@ -31,8 +31,8 @@ namespace NNLib
             }
             else
             {
-                this.gradientsWeights.Add(new Matrix(weights.Rows, weights.Columns));
-                this.gradientsBias.Add(bias == null ? null : new Matrix(bias.Rows, bias.Columns));
+                this.gradientsWeights.Add(new Tensor(weights.Depth, weights.Rows, weights.Columns));
+                this.gradientsBias.Add(bias == null ? null : new Tensor(bias.Depth, bias.Rows, bias.Columns));
             }
         }
 
@@ -43,7 +43,7 @@ namespace NNLib
         }
 
         // needs to be tested
-        public void UpdateGradient(int index, Matrix gradientWeights, Matrix gradientBias)
+        public void UpdateGradient(int index, Tensor gradientWeights, Tensor gradientBias)
         {
             if (gradientsWeights[index] != null)
             {
@@ -54,14 +54,14 @@ namespace NNLib
         }
 
         // needs to be tested
-        public (Matrix weights, Matrix bias) CalculateUpdatedWeights(int sizeOfMiniBatch, int index, Matrix originalWeights, Matrix originalBias)
+        public (Tensor weights, Tensor bias) CalculateUpdatedWeights(int sizeOfMiniBatch, int index, Tensor originalWeights, Tensor originalBias)
         {
             if (gradientsWeights[index] == null)
                 throw new InvalidOperationException("Cannot calculate updated weights of non-trainable layer !");
 
             var newWeights = originalWeights - ((1.0 * learningRate) / sizeOfMiniBatch) * gradientsWeights[index];
 
-            Matrix newBias = null;
+            Tensor newBias = null;
             if (originalBias != null)
                 newBias = originalBias - ((1.0 * learningRate) / sizeOfMiniBatch) * gradientsBias[index];
 

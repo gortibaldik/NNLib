@@ -6,23 +6,23 @@ namespace NNLib
 {
     public class LinearActivation : ActivationLayer
     {
-        public Matrix ForwardPass(Matrix input)
+        public Tensor ForwardPass(Tensor input)
             => input;
 
-        public Matrix BackwardPass(Matrix previousGradient)
+        public Tensor BackwardPass(Tensor previousGradient)
             => previousGradient;
     }
 
     public class ReLUActivation : ActivationLayer
     {
-        private Matrix lastInput;
-        public Matrix ForwardPass(Matrix input)
+        private Tensor lastInput;
+        public Tensor ForwardPass(Tensor input)
         {
             lastInput = input;
             return input.ApplyFunctionOnAllElements(x => x > 0 ? x : 0);
         }
 
-        public Matrix BackwardPass(Matrix previousGradient)
+        public Tensor BackwardPass(Tensor previousGradient)
         {
             Func<double, double, double> reluDer = (double data, double previous) =>
                 previous > 0 ? data : 0;

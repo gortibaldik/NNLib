@@ -10,32 +10,32 @@ namespace NNLib
 
         public int OutDim { get; protected set; }
 
-        public abstract Matrix ForwardPass(Matrix input, bool training = false);
+        public abstract Tensor ForwardPass(Tensor input, bool training = false);
 
         public abstract void Compile(IOptimizer optimizer);
 
-        public abstract Matrix BackwardPass(Matrix previousGradient, out Matrix derivativeWeights, out Matrix derivativeBias);
+        public abstract Tensor BackwardPass(Tensor previousGradient, out Tensor derivativeWeights, out Tensor derivativeBias);
     }
 
     interface TrainableLayer
     {
-        Matrix GetWeights();
-        Matrix GetBias();
-        void SetWeights(Matrix weights);
-        void SetBias(Matrix bias);
+        Tensor GetWeights();
+        Tensor GetBias();
+        void SetWeights(Tensor weights);
+        void SetBias(Tensor bias);
     }
 
     public interface ActivationLayer
     {
-        Matrix ForwardPass(Matrix input);
+        Tensor ForwardPass(Tensor input);
 
-        Matrix BackwardPass(Matrix previousGradient);
+        Tensor BackwardPass(Tensor previousGradient);
     }
 
     public interface LossLayer
     {
-        Matrix ForwardPass(Matrix neuralOutput, Matrix expectedOutput);
+        Tensor ForwardPass(Tensor neuralOutput, Tensor expectedOutput);
 
-        Matrix BackwardPass();
+        Tensor BackwardPass();
     }
 }

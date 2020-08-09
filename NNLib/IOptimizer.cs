@@ -6,9 +6,9 @@ namespace NNLib
 {
     public interface IOptimizer
     {
-        void AddLayer(Matrix weights, Matrix bias);
+        void AddLayer(Tensor weights, Tensor bias);
         void Compile();
-        void UpdateGradient(int index, Matrix gradientWeights, Matrix gradientBias);
-        (Matrix weights, Matrix bias) CalculateUpdatedWeights(int sizeOfMiniBatch, int index, Matrix originalWeights, Matrix originalBias);
+        void UpdateGradient(int index, Tensor gradientWeights, Tensor gradientBias);
+        (Tensor weights, Tensor bias) CalculateUpdatedWeights(int sizeOfMiniBatch, int index, Tensor originalWeights, Tensor originalBias);
     }
 }

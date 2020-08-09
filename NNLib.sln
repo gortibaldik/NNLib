@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.30320.27
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NNLib", "NNLib\NNLib.csproj", "{BF9E520C-FF0F-46DB-966E-564ED3163880}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NNLibXUnitTest", "NNLibXUnitTest\NNLibXUnitTest.csproj", "{5F29579F-DD47-4DB6-B3FA-47465E368B89}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{BF9E520C-FF0F-46DB-966E-564ED3163880}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BF9E520C-FF0F-46DB-966E-564ED3163880}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BF9E520C-FF0F-46DB-966E-564ED3163880}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5F29579F-DD47-4DB6-B3FA-47465E368B89}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F29579F-DD47-4DB6-B3FA-47465E368B89}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F29579F-DD47-4DB6-B3FA-47465E368B89}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F29579F-DD47-4DB6-B3FA-47465E368B89}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

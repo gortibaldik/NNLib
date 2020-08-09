@@ -42,7 +42,7 @@ namespace NNLib
             compiled = true;
         }
 
-        public Matrix Predict(Matrix input)
+        public Tensor Predict(Tensor input)
         {
             if (!compiled)
                 throw new InvalidOperationException("Cannot predict on uncompiled network!");
@@ -50,19 +50,19 @@ namespace NNLib
             if (input.Rows != layers[0].InDim)
                 throw new ArgumentException("Input dimensions doesn't match first layers inDimensions !");
 
-            Matrix currentOutput = input;
+            Tensor currentOutput = input;
             foreach (var layer in layers)
                 currentOutput = layer.ForwardPass(currentOutput);
 
             return currentOutput;
         }
 
-        public Matrix Forward(Matrix input, Matrix expectedOutput)
+        public Tensor Forward(Tensor input, Tensor expectedOutput)
         {
             if (input.Rows != layers[0].InDim)
                 throw new ArgumentException("Input dimensions doesn't match first layers inDimensions !");
 
-            Matrix currentOutput = input;
+            Tensor currentOutput = input;
             foreach (var layer in layers)
                 currentOutput = layer.ForwardPass(currentOutput);
 
@@ -72,11 +72,11 @@ namespace NNLib
 
         public void Backward()
         {
-            Matrix currentGradient = loss.BackwardPass();
+            Tensor currentGradient = loss.BackwardPass();
 
             for (int i = layers.Count - 1; i >= 0; i--)
             {
-                currentGradient = layers[i].BackwardPass(currentGradient, out Matrix gradientWeights, out Matrix gradientBias);
+                currentGradient = layers[i].BackwardPass(currentGradient, out Tensor gradientWeights, out Tensor gradientBias);
                 optimizer.UpdateGradient(i, gradientWeights, gradientBias);
             }
 
