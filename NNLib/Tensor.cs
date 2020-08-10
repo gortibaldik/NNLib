@@ -156,38 +156,33 @@ namespace NNLib
         /// </summary>
         private static Tensor elementWiseOp(Tensor t1, Tensor t2, Func<double, double, double> func, string nameOfOperation)
         {
-            throw new NotImplementedException();
-            //if (t1.Rows != t2.Rows)
-            //    throw new ArgumentException($"TENSOR {nameOfOperation} : {nameof(t1.Rows)}:{t1.Rows} not equal to {nameof(t2.Rows)}:{t2.Rows} !");
-            //if (t1.Columns == t2.Columns && t1.Depth == t2.Depth)
-            //{
-            //    var result = new Tensor(t1.Depth, t1.Rows, t1.Columns);
-            //    for (int i = 0; i < t1.data.Length; i++)
-            //        result.data[i] = func(t1.data[i], t2.data[i]);
+            if (t1.Rows != t2.Rows)
+                throw new ArgumentException($"TENSOR {nameOfOperation} : {nameof(t1.Rows)}:{t1.Rows} not equal to {nameof(t2.Rows)}:{t2.Rows} !");
+            if (t1.Columns == t2.Columns && t1.Depth == t2.Depth)
+            {
+                var result = new Tensor(t1.Depth, t1.Rows, t1.Columns);
+                for (int i = 0; i < t1.data.Length; i++)
+                    result.data[i] = func(t1.data[i], t2.data[i]);
 
-            //    return result;
-            //}
-            //else if (t2.Columns == 1 && t1.Depth == t2.Depth)
-            //{
-            //    var result = new Tensor(t1.Depth, t1.Rows, t1.Columns);
+                return result;
+            }
+            else if (t2.Columns == 1 && t1.Depth == t2.Depth)
+            {
+                var result = new Tensor(t1.Depth, t1.Rows, t1.Columns);
 
-            //    //for (int i = 0; i < t1.data.Length; i++)
-            //    //    result.data[i] = func(t1.data[i], t2.data[i % t1.Columns]);
-            //    //    result[depth, row, column] = func(t1[depth, row, 0])
-            //    //    result.data[depth*result.rowsColumns + row*result.Columns + column] = 
-            //    //                                      func (t1.data[depth*result.rowsColumns + row*result.Columns + column],
-            //    //                                            t2.data[depth*t2.rowsColumns + row*])
+                for (int d = 0; d < t1.Depth; d++)
+                    for (int r = 0; r < t1.Rows; r++)
+                    {
+                        int t1Offset = d * t1.rowsColumns + r * t1.Columns;
+                        var t2Data = t2[d, r, 0];
+                        for (int c = 0; c < t1.Columns; c++, t1Offset++)
+                            result.data[t1Offset] = func(t1.data[t1Offset], t2Data);
+                    }
 
-            //    for (int i = 0; i < t1.data.Length; i++)
-            //        result.data[i] = func(t1.data[i], t2.data[i%t1.Columns]);
-
-            //    // result.data[row*result.Columns + column] = func (t1.data[row*result.Columns + column], t2.data[row + column])
-            //    // result[row, column] = func(t1[row, column], t2[row, 0]);
-
-            //    return result;
-            //}
-            //else
-            //    throw new ArgumentException($"MATRIX {nameOfOperation} : NON-SUPPORTED OPERANDS : {nameof(t1.Columns)} : {t1.Columns} ; {nameof(t2.Columns)} : {t2.Columns}");
+                return result;
+            }
+            else
+                throw new ArgumentException($"MATRIX {nameOfOperation} : NON-SUPPORTED OPERANDS : {nameof(t1.Columns)} : {t1.Columns} ; {nameof(t2.Columns)} : {t2.Columns}");
         }
 
         public Tensor Transpose()
@@ -218,8 +213,7 @@ namespace NNLib
 
             return result;
         }
-
-        // needs to be tested
+ 
         public Tensor Reshape(int newDepth, int newRows, int newColumns)
         {
             if (Depth * Rows * Columns != newRows * newColumns * newDepth)
