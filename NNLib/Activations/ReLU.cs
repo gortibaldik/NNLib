@@ -1,19 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
-namespace NNLib
+namespace NNLib.Activations
 {
-    public class LinearActivation : ActivationLayer
-    {
-        public Tensor ForwardPass(Tensor input)
-            => input;
-
-        public Tensor BackwardPass(Tensor previousGradient)
-            => previousGradient;
-    }
-
-    public class ReLUActivation : ActivationLayer
+    public class ReLU : IActivationLayer
     {
         private Tensor lastInput;
         public Tensor ForwardPass(Tensor input)

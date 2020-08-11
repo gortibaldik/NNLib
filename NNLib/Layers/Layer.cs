@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace NNLib
+namespace NNLib.Layers
 {
     public abstract class Layer
     {
@@ -15,27 +15,5 @@ namespace NNLib
         public abstract void Compile(IOptimizer optimizer);
 
         public abstract Tensor BackwardPass(Tensor previousGradient, out Tensor derivativeWeights, out Tensor derivativeBias);
-    }
-
-    interface TrainableLayer
-    {
-        Tensor GetWeights();
-        Tensor GetBias();
-        void SetWeights(Tensor weights);
-        void SetBias(Tensor bias);
-    }
-
-    public interface ActivationLayer
-    {
-        Tensor ForwardPass(Tensor input);
-
-        Tensor BackwardPass(Tensor previousGradient);
-    }
-
-    public interface LossLayer
-    {
-        Tensor ForwardPass(Tensor neuralOutput, Tensor expectedOutput);
-
-        Tensor BackwardPass();
     }
 }

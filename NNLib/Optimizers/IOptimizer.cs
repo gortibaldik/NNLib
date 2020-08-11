@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace NNLib
+namespace NNLib.Optimizers
 {
     public interface IOptimizer
     {

@@ -1,37 +1,36 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using NNLib.Activations;
 
-namespace NNLib
+namespace NNLib.Layers
 {
-    public class DenseLayer : Layer, TrainableLayer
+    public class DenseLayer : Layer, ITrainable
     {
         private Tensor _weights = null;
         private Tensor _bias = null;
 
-        private ActivationLayer _activation = null;
+        private IActivationLayer _activation = null;
         private NInitializer _weightInit = null;
         private NInitializer _biasInit = null;
 
         private Tensor lastInput = null;
         private Tensor lastOutput = null;
 
-        public DenseLayer(int outDim, ActivationLayer activation = null, NInitializer weightInit = null, NInitializer biasInit = null)
+        public DenseLayer(int outDim, IActivationLayer activation = null, NInitializer weightInit = null, NInitializer biasInit = null)
         {
-            _activation = activation == null ? new LinearActivation() : activation;
-            _weightInit = weightInit == null ? NeuronInitializers.NInitNormal : weightInit;
-            _biasInit = biasInit == null ? NeuronInitializers.NInitZero : biasInit;
-            OutDim = outDim > 0 ? outDim : throw new ArgumentException("Weight dimensions must be greater than 0!");
+            _activation     = activation    ==  null ? new LinearActivation()            : activation;
+            _weightInit     = weightInit    ==  null ? NeuronInitializers.NInitNormal    : weightInit;
+            _biasInit       = biasInit      ==  null ? NeuronInitializers.NInitZero      : biasInit;
+            OutDim          = outDim        >   0    ? outDim                            : throw new ArgumentException("Weight dimensions must be greater than 0!");
 
             // InDim is kept -1 until NeuralNetwork class uses internal setter
         }
 
-        public DenseLayer(int inDim, int outDim, NInitializer weightInit, NInitializer biasInit, ActivationLayer activation) : this(outDim, activation, weightInit, biasInit)
+        public DenseLayer(int inDim, int outDim, NInitializer weightInit, NInitializer biasInit, IActivationLayer activation) : this(outDim, activation, weightInit, biasInit)
         {
             InDim = inDim > 0 ? inDim : throw new ArgumentException("Weight dimensions must be greater than 0!");
         }
 
-        public DenseLayer(Tensor weights, Tensor bias, ActivationLayer activation)
+        public DenseLayer(Tensor weights, Tensor bias, IActivationLayer activation)
         {
             if (weights == null)
                 throw new ArgumentException("Cannot create dense layer without weights !");
@@ -90,16 +89,16 @@ namespace NNLib
             return gradient;
         }
 
-        void TrainableLayer.SetWeights(Tensor weights)
+        void ITrainable.SetWeights(Tensor weights)
             => _weights = weights;
 
-        void TrainableLayer.SetBias(Tensor bias)
+        void ITrainable.SetBias(Tensor bias)
             => _bias = bias;
 
-        Tensor TrainableLayer.GetWeights()
+        Tensor ITrainable.GetWeights()
             => _weights;
 
-        Tensor TrainableLayer.GetBias()
+        Tensor ITrainable.GetBias()
             => _bias;
 
         public override string ToString()

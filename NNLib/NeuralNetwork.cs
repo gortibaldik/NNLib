@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Text;
 
+using NNLib.Layers;
+
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("NNLibXUnitTest")]
 
 namespace NNLib
@@ -9,7 +11,7 @@ namespace NNLib
     public class NeuralNetwork
     {
         private List<Layer> layers = new List<Layer>();
-        private LossLayer loss = null;
+        private ILossLayer loss = null;
         private IOptimizer optimizer = null;
 
         private bool compiled = false;
@@ -33,7 +35,7 @@ namespace NNLib
             layers.Add(layer);
         }
 
-        public void Compile(LossLayer loss, IOptimizer optimizer)
+        public void Compile(ILossLayer loss, IOptimizer optimizer)
         {
             this.loss = loss == null ? throw new ArgumentException("Loss must be specified!") : loss;
             this.optimizer = optimizer == null ? throw new ArgumentException("Optimizer must be specified!") : optimizer;
@@ -90,7 +92,7 @@ namespace NNLib
         {
             for (int i = 0; i < layers.Count; i++)
             {
-                var trainable = layers[i] as TrainableLayer;
+                var trainable = layers[i] as ITrainable;
                 if (trainable != null)
                 {
                     (var newWeights, var newBias) = optimizer.CalculateUpdatedWeights((int)sizeOfMiniBatch, i, trainable.GetWeights(), trainable.GetBias());

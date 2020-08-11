@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace NNLib
+namespace NNLib.Losses
 {
-    public class MSELoss : LossLayer
+    public class MSELoss : ILossLayer
     {
         Tensor neuralOutput = null;
         Tensor expectedOutput = null;
