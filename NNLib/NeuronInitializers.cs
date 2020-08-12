@@ -16,6 +16,9 @@ namespace NNLib
         public static double NInitZero()
             => 0;
 
+        public static double NInitOne()
+            => 1;
+
         public static double NInitNormal()
         {
             double x1 = 1.0 - _RND.NextDouble();

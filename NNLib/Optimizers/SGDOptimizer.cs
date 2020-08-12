@@ -1,6 +1,8 @@
-﻿using System;
+﻿using NNLib.Layers;
+using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Xml.Schema;
 
 namespace NNLib.Optimizers
 {
@@ -11,26 +13,29 @@ namespace NNLib.Optimizers
         private List<Tensor> gradientsBias = new List<Tensor>();
 
         private bool compiled;
-        private int numberOfLayers;
 
         public SGDOptimizer(double learningRate)
         {
             this.learningRate = learningRate;
         }
 
-        public void AddLayer(Tensor weights, Tensor bias)
+        public void AddLayer(Layer layer)
         {
             if (compiled == true)
                 throw new InvalidOperationException("Optimizer already compiled!");
 
+            var trainable = layer as ITrainable;
             // needs to be tested
-            if (weights == null)
+            if (trainable == null)
             {
                 this.gradientsWeights.Add(null);
                 this.gradientsBias.Add(null);
             }
             else
             {
+                var weights = trainable.GetWeights();
+                var bias = trainable.GetBias();
+
                 this.gradientsWeights.Add(new Tensor(weights.Depth, weights.Rows, weights.Columns));
                 this.gradientsBias.Add(bias == null ? null : new Tensor(bias.Depth, bias.Rows, bias.Columns));
             }
@@ -42,7 +47,7 @@ namespace NNLib.Optimizers
             numberOfLayers = gradientsWeights.Count;
         }
 
-        // needs to be tested
+
         public void UpdateGradient(int index, Tensor gradientWeights, Tensor gradientBias)
         {
             if (gradientsWeights[index] != null)
@@ -53,19 +58,26 @@ namespace NNLib.Optimizers
             }
         }
 
-        // needs to be tested
-        public (Tensor weights, Tensor bias) CalculateUpdatedWeights(int sizeOfMiniBatch, int index, Tensor originalWeights, Tensor originalBias)
+
+        public void CalculateAndUpdateWeights(int sizeOfMiniBatch, List<Layer> layers)
         {
-            if (gradientsWeights[index] == null)
-                throw new InvalidOperationException("Cannot calculate updated weights of non-trainable layer !");
+            if (layers.Count != gradientsWeights.Count)
+                throw new ArgumentException($"{nameof(layers)} doesn't match {nameof(gradientsWeights)} !");
 
-            var newWeights = originalWeights - ((1.0 * learningRate) / sizeOfMiniBatch) * gradientsWeights[index];
+            for (int i = 0; i < layers.Count; i++)
+            {
+                var trainable = layers[i] as ITrainable;
+                if (trainable != null)
+                {
+                    var originalWeights = trainable.GetWeights();
+                    trainable.SetWeights(originalWeights - ((1.0 * learningRate) / sizeOfMiniBatch) * gradientsWeights[i]);
 
-            Tensor newBias = null;
-            if (originalBias != null)
-                newBias = originalBias - ((1.0 * learningRate) / sizeOfMiniBatch) * gradientsBias[index];
+                    var originalBias = trainable.GetBias();
+                    if (originalBias != null)
+                        trainable.SetBias(originalBias - ((1.0 * learningRate) / sizeOfMiniBatch) * gradientsBias[i]);
+                }
 
-            return (newWeights, newBias);
+            }
         }
 
         public override string ToString()

@@ -228,6 +228,31 @@ namespace NNLib
             return result;
         }
 
+        public Tensor SumRows()
+        {
+            if (Columns == 1) // no reference passing, we need a copy
+            {
+                var res = new Tensor(Depth, Rows, 1);
+                data.CopyTo(res.data, 0);
+                return res;
+            }
+
+            var result = new Tensor(Depth, Rows, 1);
+            var offset = 0;
+
+            for (int d = 0; d < Depth; d++)
+                for (int r = 0; r < Rows; r++)
+                {
+                    var res = 0D;
+                    for (int c = 0; c < Columns; c++, offset++)
+                        res += data[offset];
+
+                    result[d, r, 0] = res;
+                }
+
+            return result;
+        }
+
         public override string ToString()
         {
             StringBuilder builder = new StringBuilder();

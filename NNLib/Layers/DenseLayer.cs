@@ -1,10 +1,14 @@
 ﻿using System;
 using NNLib.Activations;
+using NNLib.Optimizers;
 
 namespace NNLib.Layers
 {
     public class DenseLayer : Layer, ITrainable
     {
+        public override int OutDepth { get => 1; }
+        public override int OutColumns { get => InColumns.Value; }
+
         private Tensor _weights = null;
         private Tensor _bias = null;
 
@@ -15,19 +19,19 @@ namespace NNLib.Layers
         private Tensor lastInput = null;
         private Tensor lastOutput = null;
 
-        public DenseLayer(int outDim, IActivationLayer activation = null, NInitializer weightInit = null, NInitializer biasInit = null)
+        public DenseLayer(int outRows, IActivationLayer activation = null, NInitializer weightInit = null, NInitializer biasInit = null)
         {
             _activation     = activation    ==  null ? new LinearActivation()            : activation;
             _weightInit     = weightInit    ==  null ? NeuronInitializers.NInitNormal    : weightInit;
             _biasInit       = biasInit      ==  null ? NeuronInitializers.NInitZero      : biasInit;
-            OutDim          = outDim        >   0    ? outDim                            : throw new ArgumentException("Weight dimensions must be greater than 0!");
+            OutRows          = outRows        >   0    ? outRows                            : throw new ArgumentException("Weight dimensions must be greater than 0!");
 
-            // InDim is kept -1 until NeuralNetwork class uses internal setter
+            // InDimensions kept null until NeuralNetwork class uses internal setter
         }
 
-        public DenseLayer(int inDim, int outDim, NInitializer weightInit, NInitializer biasInit, IActivationLayer activation) : this(outDim, activation, weightInit, biasInit)
+        public DenseLayer(int inRows, int outDim, NInitializer weightInit, NInitializer biasInit, IActivationLayer activation) : this(outDim, activation, weightInit, biasInit)
         {
-            InDim = inDim > 0 ? inDim : throw new ArgumentException("Weight dimensions must be greater than 0!");
+            InRows       = inRows    > 0 ? inRows    : throw new ArgumentException("Weight dimensions must be greater than 0!");
         }
 
         public DenseLayer(Tensor weights, Tensor bias, IActivationLayer activation)
@@ -43,14 +47,14 @@ namespace NNLib.Layers
                 throw new ArgumentException($"{nameof(bias)}.{nameof(bias.Rows)} : {bias.Rows} doesn't correspond to {nameof(weights)}.{nameof(weights.Columns)} : {weights.Columns}");
 
             _weights = weights;
-            InDim = _weights.Columns;
-            OutDim = _weights.Rows;
+            InRows = _weights.Columns;
+            OutRows = _weights.Rows;
             _activation = activation;
         }
 
-        public override void Compile(IOptimizer optimizer = null)
+        public override void Compile()
         {
-            if (InDim == 0)
+            if (InRows == 0)
                 throw new InvalidOperationException("Input dimension hasn't been declared yet!");
 
             if (_weights == null)
@@ -58,19 +62,20 @@ namespace NNLib.Layers
                 // W*I + B = O
                 // where W - _weights, B - _bias, I - input, O - output
                 // therefore outputDimension
-                _weights = new Tensor(1, OutDim, InDim, _weightInit);
+                _weights = new Tensor(1, OutRows, (int)InRows, _weightInit);
 
                 // bias isn't used for multiplication only for column-wise
                 // addition, therefore names OutDim, InDim don't have any special
                 // meaning for bias
-                _bias = new Tensor(1, OutDim, 1, _biasInit);
+                _bias = new Tensor(1, OutRows, 1, _biasInit);
             }
 
-            optimizer?.AddLayer(_weights, _bias);
+            compiled = true;
         }
 
         public override Tensor ForwardPass(Tensor resultPrevious, bool training = false)
         {
+            InputCheck(resultPrevious);
             lastInput = resultPrevious;
             lastOutput = _weights * resultPrevious + _bias;
             Tensor result = (_activation == null) ? lastOutput : _activation.ForwardPass(lastOutput);
@@ -79,12 +84,13 @@ namespace NNLib.Layers
 
         public override Tensor BackwardPass(Tensor previousGradient, out Tensor derivativeWeights, out Tensor derivativeBias)
         {
+            InputCheck(input: previousGradient, fwd : false);
             if (lastInput == null)
                 throw new InvalidOperationException("No forward pass before backward pass !");
-
+            
             previousGradient = _activation == null ? previousGradient : _activation.BackwardPass(previousGradient);
             derivativeWeights = previousGradient * lastInput.Transpose();
-            derivativeBias = _bias == null ? null : previousGradient;
+            derivativeBias = _bias == null ? null : previousGradient.SumRows();
             Tensor gradient = _weights.Transpose() * previousGradient;
             return gradient;
         }

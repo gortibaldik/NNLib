@@ -21,6 +21,7 @@ namespace NNLib.Losses
                     for (int c = 0; c < neuralOutput.Columns; c++)
                         res += Math.Pow(neuralOutput[d,r, c] - expectedOutput[d,r, c], 2);
 
+            result[0, 0, 0] = res;
             return result;
         }
 
