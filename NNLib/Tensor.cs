@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data.Common;
 using System.Text;
 
 namespace NNLib
@@ -22,6 +20,18 @@ namespace NNLib
 
 
         private int rowsColumns = 0;
+
+        public Tensor(int depth, int rows, int columns, double[] data)
+        {
+            if (data.Length != depth * rows * columns)
+                throw new ArgumentException($"array {nameof(data)} doesn't contain enough elements to fill {depth}x{rows}x{columns} tensor !");
+
+            Depth = depth;
+            Rows = rows;
+            Columns = columns;
+            rowsColumns = rows * columns;
+            data.CopyTo(this.data, 0);
+        }
 
         public Tensor(double[,,] data)
         {

@@ -1,8 +1,8 @@
-﻿using NNLib.Layers;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Text;
-using System.Xml.Schema;
+using System.Collections.Generic;
+
+using NNLib.Layers;
 
 namespace NNLib.Optimizers
 {
@@ -14,7 +14,7 @@ namespace NNLib.Optimizers
 
         private bool compiled;
 
-        public SGDOptimizer(double learningRate)
+        public SGDOptimizer(double learningRate = 0.01)
         {
             this.learningRate = learningRate;
         }
@@ -42,10 +42,7 @@ namespace NNLib.Optimizers
         }
 
         public void Compile()
-        {
-            compiled = true;
-            numberOfLayers = gradientsWeights.Count;
-        }
+            => compiled = true;
 
 
         public void UpdateGradient(int index, Tensor gradientWeights, Tensor gradientBias)

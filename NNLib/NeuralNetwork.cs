@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-
+using System.Xml.Schema;
 using NNLib.Layers;
 using NNLib.Losses;
 using NNLib.Optimizers;
@@ -92,7 +92,7 @@ namespace NNLib
             return currentOutput;
         }
 
-        public Tensor Forward(Tensor input, Tensor expectedOutput)
+        public double Forward(Tensor input, Tensor expectedOutput)
         {
             if (input.Rows != layers[0].InRows)
                 throw new ArgumentException("Input dimensions doesn't match first layers inDimensions !");
@@ -102,8 +102,7 @@ namespace NNLib
                 currentOutput = layer.ForwardPass(currentOutput);
 
             LastPrediction = currentOutput;
-            currentOutput = loss.ForwardPass(currentOutput, expectedOutput);
-            return currentOutput;
+            return loss.ForwardPass(currentOutput, expectedOutput);
         }
 
         public void Backward()
@@ -118,6 +117,25 @@ namespace NNLib
 
             sizeOfMiniBatch ??= 0;
             sizeOfMiniBatch++;
+        }
+
+        public void Fit(IDataset dataset)
+        {
+            var batchNumber = 1;
+            while (!dataset.EndTraining)
+            {
+                foreach((var trainInput, var trainLabel) in dataset.GetBatch())
+                {
+                    Forward(trainInput, trainLabel);
+                    Backward();
+                }
+                UpdateWeights();
+
+                (var valInput, var valLabel) = dataset.GetValidation();
+                var loss = Forward(valInput, valLabel);
+
+                Console.WriteLine($"Batch {batchNumber} loss : {loss}\n");
+            }
         }
 
         public void UpdateWeights()

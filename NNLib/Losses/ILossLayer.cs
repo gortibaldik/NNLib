@@ -2,7 +2,7 @@
 { 
     public interface ILossLayer
     {
-        Tensor ForwardPass(Tensor neuralOutput, Tensor expectedOutput);
+        double ForwardPass(Tensor neuralOutput, Tensor expectedOutput);
 
         Tensor BackwardPass();
     }
