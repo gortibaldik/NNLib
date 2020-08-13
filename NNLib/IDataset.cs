@@ -11,5 +11,7 @@ namespace NNLib
         IEnumerable<(Tensor Input, Tensor Label)> GetBatch();
 
         IEnumerable<(Tensor Input, Tensor Label)> GetValidation();
+
+        IEnumerable<(Tensor Input, Tensor Label)> GetTestSet();
     }
 }

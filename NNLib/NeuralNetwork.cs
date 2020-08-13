@@ -14,7 +14,7 @@ namespace NNLib
 {
     public class NeuralNetwork
     {
-        private List<Layer> layers = new List<Layer>();
+        private readonly List<Layer> layers = new List<Layer>();
         private ILossLayer loss = null;
         private IOptimizer optimizer = null;
 
@@ -48,8 +48,7 @@ namespace NNLib
             }
             else
             {
-                var withActivation = layers[^1] as IWithActivation;
-                if (withActivation != null && withActivation.ActivationUsed == ActivationFunctions.Softmax)
+                if (layers[^1] is IWithActivation withActivation && withActivation.ActivationUsed == ActivationFunctions.Softmax)
                     throw new InvalidOperationException("Mode with adding more layers after softmax is not supported!");
 
                 // checking initialized and initializing unitialized dimensions
@@ -71,8 +70,8 @@ namespace NNLib
 
         public void Compile(ILossLayer loss, IOptimizer optimizer)
         {
-            this.loss = loss == null ? throw new ArgumentException("Loss must be specified!") : loss;
-            this.optimizer = optimizer == null ? throw new ArgumentException("Optimizer must be specified!") : optimizer;
+            this.loss = loss ?? throw new ArgumentException("Loss must be specified!");
+            this.optimizer = optimizer ?? throw new ArgumentException("Optimizer must be specified!");
 
             var withActivation = layers[^1] as IWithActivation;
             if (loss is SparseCategoricalCrossEntropy && (withActivation == null || withActivation.ActivationUsed != ActivationFunctions.Softmax))
@@ -150,20 +149,40 @@ namespace NNLib
                     var loss = 0D;
                     var vals = 0;
                     var correct = 0;
-                    var accuracy = 0D;
-                    foreach ((var valInput, var valLabel) in dataset.GetValidation())
+                    foreach (var (Input, Label) in dataset.GetValidation())
                     {
-                        loss += Forward(valInput, valLabel);
-                        if (valLabel.MaxIndex() == LastPrediction.MaxIndex())
+                        loss += Forward(Input, Label);
+                        if (Label.MaxIndex() == LastPrediction.MaxIndex())
                             correct++;
                         vals++;
                     }
                     loss /= vals;
-                    accuracy = (double)correct / vals;
+                    var accuracy = (double)correct / vals;
 
                     Console.WriteLine($"Epoch {epochNumber++} loss : {loss} accuracy : {accuracy}");
                 }
             }
+        }
+
+        public void Evaluate(IDataset dataset)
+        {
+            var loss = 0D;
+            var vals = 0;
+            var correct = 0;
+            foreach (var (Input, Label) in dataset.GetTestSet())
+            {
+                if (vals == 0)
+                    Console.WriteLine("Started evaluation...");
+
+                loss += Forward(Input, Label);
+                if (Label.MaxIndex() == LastPrediction.MaxIndex())
+                    correct++;
+                vals++;
+            }
+            loss /= vals;
+            var accuracy = (double)correct / vals;
+
+            Console.WriteLine($"Loss : {loss} accuracy : {accuracy}");
         }
 
         public void UpdateWeights()
