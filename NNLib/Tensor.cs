@@ -30,6 +30,7 @@ namespace NNLib
             Rows = rows;
             Columns = columns;
             rowsColumns = rows * columns;
+            this.data = new double[data.Length];
             data.CopyTo(this.data, 0);
         }
 
@@ -261,6 +262,25 @@ namespace NNLib
                 }
 
             return result;
+        }
+
+        public (int depth, int row, int column) MaxIndex()
+        {
+            var max = double.MinValue;
+            int depth=0, row=0, column=0;
+
+            for (int d = 0; d < Depth; d++)
+                for (int r = 0; r < Rows; r++)
+                    for (int c = 0; c < Columns; c++)
+                        if (max < this[d,r,c])
+                        {
+                            max = this[d, r, c];
+                            depth = d;
+                            row = r;
+                            column = c;
+                        }
+
+            return (depth, row, column);
         }
 
         public override string ToString()

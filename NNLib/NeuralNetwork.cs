@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Xml.Schema;
+
+using NNLib.Activations;
 using NNLib.Layers;
 using NNLib.Losses;
 using NNLib.Optimizers;
@@ -46,6 +48,10 @@ namespace NNLib
             }
             else
             {
+                var withActivation = layers[^1] as IWithActivation;
+                if (withActivation != null && withActivation.ActivationUsed == ActivationFunctions.Softmax)
+                    throw new InvalidOperationException("Mode with adding more layers after softmax is not supported!");
+
                 // checking initialized and initializing unitialized dimensions
                 int? variable = layer.InDepth;
                 DimCheck(ref variable, layers[^1].OutDepth);
@@ -67,6 +73,13 @@ namespace NNLib
         {
             this.loss = loss == null ? throw new ArgumentException("Loss must be specified!") : loss;
             this.optimizer = optimizer == null ? throw new ArgumentException("Optimizer must be specified!") : optimizer;
+
+            var withActivation = layers[^1] as IWithActivation;
+            if (loss is SparseCategoricalCrossEntropy && (withActivation == null || withActivation.ActivationUsed != ActivationFunctions.Softmax))
+                throw new InvalidOperationException("SparseCategoricalCrossEntropy loss is supported only when preceded by Softmax!");
+
+            if (withActivation != null && withActivation.ActivationUsed == ActivationFunctions.Softmax && !(loss is SparseCategoricalCrossEntropy))
+                throw new InvalidOperationException("Last layer with activation Softmax is supported only when followed by SparseCategoricalCrossEntropy!");
 
             foreach (var layer in layers)
             {
@@ -121,7 +134,7 @@ namespace NNLib
 
         public void Fit(IDataset dataset)
         {
-            var batchNumber = 1;
+            var epochNumber = 1;
             while (!dataset.EndTraining)
             {
                 foreach((var trainInput, var trainLabel) in dataset.GetBatch())
@@ -129,12 +142,27 @@ namespace NNLib
                     Forward(trainInput, trainLabel);
                     Backward();
                 }
-                UpdateWeights();
+                if (sizeOfMiniBatch.HasValue)
+                    UpdateWeights();
 
-                (var valInput, var valLabel) = dataset.GetValidation();
-                var loss = Forward(valInput, valLabel);
+                if (dataset.EndEpoch)
+                {
+                    var loss = 0D;
+                    var vals = 0;
+                    var correct = 0;
+                    var accuracy = 0D;
+                    foreach ((var valInput, var valLabel) in dataset.GetValidation())
+                    {
+                        loss += Forward(valInput, valLabel);
+                        if (valLabel.MaxIndex() == LastPrediction.MaxIndex())
+                            correct++;
+                        vals++;
+                    }
+                    loss /= vals;
+                    accuracy = (double)correct / vals;
 
-                Console.WriteLine($"Batch {batchNumber} loss : {loss}\n");
+                    Console.WriteLine($"Epoch {epochNumber++} loss : {loss} accuracy : {accuracy}");
+                }
             }
         }
 

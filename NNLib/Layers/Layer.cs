@@ -5,6 +5,12 @@ namespace NNLib.Layers
 {
     public abstract class Layer
     {
+        public virtual int OutRows { get; protected set; } = -1;
+        public virtual int OutColumns { get; protected set; } = -1;
+        public virtual int OutDepth { get; protected set; } = -1;
+
+        protected bool compiled = false;
+
         private int? inRows;
 
         /// <summary>
@@ -38,11 +44,6 @@ namespace NNLib.Layers
             internal set => inDepth = compiled == false ? value : throw new InvalidOperationException("Cannot change input dimensions of already compiled layer !");
         }
 
-        public virtual int OutRows { get; protected set; } = -1;
-        public virtual int OutColumns { get; protected set; } = -1;
-        public virtual int OutDepth { get; protected set; } = -1;
-
-        protected bool compiled = false;
 
         public abstract Tensor ForwardPass(Tensor input, bool training = false);
 

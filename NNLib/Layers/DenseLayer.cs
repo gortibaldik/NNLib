@@ -4,7 +4,7 @@ using NNLib.Optimizers;
 
 namespace NNLib.Layers
 {
-    public class DenseLayer : Layer, ITrainable
+    public class DenseLayer : Layer, ITrainable, IWithActivation
     {
         public override int OutDepth { get => 1; }
         public override int OutColumns { get => InColumns.Value; }
@@ -21,10 +21,10 @@ namespace NNLib.Layers
 
         public DenseLayer(int outRows, IActivationLayer activation = null, NInitializer weightInit = null, NInitializer biasInit = null)
         {
-            _activation     = activation    ==  null ? new LinearActivation()            : activation;
+            _activation     = activation    ==  null ? new LinearActivation()            : activation;            
             _weightInit     = weightInit    ==  null ? NeuronInitializers.NInitNormal    : weightInit;
             _biasInit       = biasInit      ==  null ? NeuronInitializers.NInitZero      : biasInit;
-            OutRows          = outRows        >   0    ? outRows                            : throw new ArgumentException("Weight dimensions must be greater than 0!");
+            OutRows          = outRows       >  0    ? outRows                           : throw new ArgumentException("Weight dimensions must be greater than 0!");
 
             // InDimensions kept null until NeuralNetwork class uses internal setter
         }
@@ -49,7 +49,7 @@ namespace NNLib.Layers
             _weights = weights;
             InRows = _weights.Columns;
             OutRows = _weights.Rows;
-            _activation = activation;
+            _activation = activation == null ? new LinearActivation() : activation;
         }
 
         public override void Compile()
@@ -107,6 +107,7 @@ namespace NNLib.Layers
         Tensor ITrainable.GetBias()
             => _bias;
 
+        ActivationFunctions IWithActivation.ActivationUsed { get => _activation.Name; }
         public override string ToString()
         {
             if (_weights == null)

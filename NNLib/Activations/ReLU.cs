@@ -5,6 +5,8 @@ namespace NNLib.Activations
     public class ReLU : IActivationLayer
     {
         private Tensor lastInput;
+
+        public ActivationFunctions Name { get => ActivationFunctions.ReLU; }
         public Tensor ForwardPass(Tensor input)
         {
             lastInput = input;

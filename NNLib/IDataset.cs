@@ -4,11 +4,12 @@ using System.Text;
 
 namespace NNLib
 {
-    public interface IDataset : IEnumerable<(Tensor, Tensor)>
+    public interface IDataset : IEnumerable<(Tensor Input, Tensor Label)>
     {
         bool EndTraining { get; }
+        bool EndEpoch { get; }
         IEnumerable<(Tensor Input, Tensor Label)> GetBatch();
 
-        (Tensor Input, Tensor Label) GetValidation();
+        IEnumerable<(Tensor Input, Tensor Label)> GetValidation();
     }
 }
