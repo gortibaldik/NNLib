@@ -9,6 +9,26 @@ namespace NNLibXUnitTest
     public class TensorTest
     {
         [Fact]
+        public void ParallelCopyTo()
+        {
+            // arrange
+            int capacity = 20_003;
+            var result = new double[capacity];
+            for (int i = 0; i < capacity; i++)
+                result[i] = i*5;
+
+            var d = new double[capacity];
+
+            // act
+            result.ParallelCopyTo(d);
+
+            // assert
+            for (int i = 0; i < 200; i++)
+                Assert.Equal(result[i], d[i]);
+        }
+
+
+        [Fact]
         public void ElementWiseAdditionSameDimensions1()
         {
             // arrange

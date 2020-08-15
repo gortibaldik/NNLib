@@ -131,9 +131,11 @@ namespace NNLib
             sizeOfMiniBatch++;
         }
 
-        public void Fit(IDataset dataset)
+        public void Fit(IDataset dataset, int epochs, int batchSize)
         {
             var epochNumber = 1;
+            dataset.Epochs = epochs;
+            dataset.BatchSize = batchSize;
             while (!dataset.EndTraining)
             {
                 foreach((var trainInput, var trainLabel) in dataset.GetBatch())

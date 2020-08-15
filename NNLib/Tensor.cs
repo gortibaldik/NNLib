@@ -1,5 +1,9 @@
-﻿using System;
+﻿#define FORCE_PARALLELISM
+
+using System;
 using System.Text;
+using System.Threading.Tasks;
+
 
 namespace NNLib
 {
@@ -13,6 +17,7 @@ namespace NNLib
     {
         private double[] data;
 
+        public int Batches { get; }
         public int Depth { get; }
         public int Rows { get; }
         public int Columns { get; }
@@ -31,7 +36,7 @@ namespace NNLib
             Columns = columns;
             rowsColumns = rows * columns;
             this.data = new double[data.Length];
-            data.CopyTo(this.data, 0);
+            data.ParallelCopyTo(this.data);
         }
 
         public Tensor(double[,,] data)
@@ -39,6 +44,7 @@ namespace NNLib
             Depth = data.GetLength(0);
             Rows = data.GetLength(1);
             Columns = data.GetLength(2);
+            Batches = 1;
             rowsColumns = Rows * Columns;
             this.data = new double[Depth * Rows * Columns];
 
@@ -53,6 +59,7 @@ namespace NNLib
             Rows = rows;
             Columns = columns;
             Depth = depth;
+            Batches = 1;
             rowsColumns = rows * columns;
             data = new double[depth*rows*columns];
         }
@@ -98,7 +105,8 @@ namespace NNLib
             var result = new Tensor(t1.Depth, t1.Rows, t2.Columns);
 
             for (int d = 0; d < t1.Depth; d++, t1DepthOffset += t1.rowsColumns, t2DepthOffset += t2.rowsColumns)
-                for (int t1Row = 0; t1Row < t1.Rows; t1Row++)
+                Parallel.For(0, t1.Rows, t1Row =>
+                {
                     for (int t2Col = 0; t2Col < t2.Columns; t2Col++)
                     {
                         var res = 0D;
@@ -112,6 +120,7 @@ namespace NNLib
 
                         result[d, t1Row, t2Col] = res;
                     }
+                });
 
             return result;
         }
@@ -127,7 +136,8 @@ namespace NNLib
             var t2DepthOffset = (t2.Depth - 1) * t2.rowsColumns;
             var result = new Tensor(1, t1.Rows, t2.Columns);
 
-            for (int t1Row = 0; t1Row < t1.Rows; t1Row++)
+            Parallel.For(0, t1.Rows, t1Row =>
+            {
                 for (int t2Col = 0; t2Col < t2.Columns; t2Col++)
                 {
                     var res = 0D;
@@ -141,6 +151,7 @@ namespace NNLib
 
                     result[0, t1Row, t2Col] = res;
                 }
+            });
 
             return result;
         }
@@ -148,8 +159,8 @@ namespace NNLib
         public static Tensor operator *(double d1, Tensor t2)
         {
             var result = new Tensor(t2.Depth, t2.Rows, t2.Columns);
-            for (int i = 0; i < t2.data.Length; i++)
-                result.data[i] = d1*t2.data[i];
+            Parallel.For(0, t2.data.Length, i =>
+                result.data[i] = d1*t2.data[i]);
 
             return result;
         }
@@ -172,8 +183,8 @@ namespace NNLib
             if (t1.Columns == t2.Columns && t1.Depth == t2.Depth)
             {
                 var result = new Tensor(t1.Depth, t1.Rows, t1.Columns);
-                for (int i = 0; i < t1.data.Length; i++)
-                    result.data[i] = func(t1.data[i], t2.data[i]);
+                Parallel.For(0, t1.data.Length, i=>
+                    result.data[i] = func(t1.data[i], t2.data[i]));
 
                 return result;
             }
@@ -182,13 +193,13 @@ namespace NNLib
                 var result = new Tensor(t1.Depth, t1.Rows, t1.Columns);
 
                 for (int d = 0; d < t1.Depth; d++)
-                    for (int r = 0; r < t1.Rows; r++)
+                    Parallel.For(0, t1.Rows, r =>
                     {
                         int t1Offset = d * t1.rowsColumns + r * t1.Columns;
                         var t2Data = t2[d, r, 0];
                         for (int c = 0; c < t1.Columns; c++, t1Offset++)
                             result.data[t1Offset] = func(t1.data[t1Offset], t2Data);
-                    }
+                    });
 
                 return result;
             }
@@ -200,9 +211,11 @@ namespace NNLib
         {
             Tensor result = new Tensor(Depth, Columns, Rows);
             for (int d = 0; d < Depth; d++)
-                for (int r = 0; r < Rows; r++)
+                Parallel.For(0, Rows, r =>
+                {
                     for (int c = 0; c < Columns; c++)
                         result[d, c, r] = this[d, r, c];
+                });
 
             return result;
         }
@@ -210,8 +223,27 @@ namespace NNLib
         public Tensor ApplyFunctionOnAllElements(Func<double, double> func)
         {
             Tensor result = new Tensor(Depth, Rows, Columns);
+
+#if FORCE_PARALLELISM
+            int chunk;
+            if (result.data.Length > 100)
+            {
+                chunk = result.data.Length / 4;
+                Parallel.For(0, 4, i =>
+                {
+                    int endIndex = i == 3 ? result.data.Length : chunk * (i + 1);
+                    for (int j = i * chunk; j < endIndex; j++)
+                        result.data[j] = func(data[j]);
+                });
+            }
+            else
+                for (int r = 0; r < data.Length; r++)
+                    result.data[r] = func(data[r]);
+#else
+
             for (int r = 0; r < data.Length; r++)
                 result.data[r] = func(data[r]);
+#endif
 
             return result;
         }
@@ -219,8 +251,27 @@ namespace NNLib
         public Tensor ApplyFunctionOnAllElements(Func<double, double, double> func, Tensor auxMatrix)
         {
             Tensor result = new Tensor(Depth, Rows, Columns);
-            for (int r = 0; r < data.Length; r++)
-                result.data[r] = func(data[r], auxMatrix.data[r]);
+#if FORCE_PARALLELISM
+
+            int chunk;
+            if (result.data.Length > 100)
+            {
+                chunk = result.data.Length / 4;
+                Parallel.For(0, 4, i =>
+                {
+                    int endIndex = i == 3 ? result.data.Length : chunk * (i + 1);
+                    for (int j = i * chunk; j < endIndex; j++)
+                        result.data[j] = func(data[j], auxMatrix.data[j]);
+                });
+            }
+            else
+                for (int r = 0; r < data.Length; r++)
+                    result.data[r] = func(data[r], auxMatrix.data[r]);
+#else
+
+            //for (int r = 0; r < data.Length; r++)
+            //    result.data[r] = func(data[r], auxMatrix.data[r]);
+#endif
 
             return result;
         }
@@ -234,7 +285,8 @@ namespace NNLib
                 throw new ArgumentOutOfRangeException("Dimensions of matrix cannot be less than or equal to zero !");
 
             var result = new Tensor(newDepth, newRows, newColumns);
-            data.CopyTo(result.data, 0);
+
+            data.ParallelCopyTo(result.data);
 
             return result;
         }
@@ -244,7 +296,7 @@ namespace NNLib
             if (Columns == 1) // no reference passing, we need a copy
             {
                 var res = new Tensor(Depth, Rows, 1);
-                data.CopyTo(res.data, 0);
+                data.ParallelCopyTo(res.data);
                 return res;
             }
 
@@ -297,6 +349,28 @@ namespace NNLib
                 }
             }
             return builder.ToString();
+        }
+    }
+
+    static class DoubleArrayExtensions
+    {
+        public static void ParallelCopyTo(this double[] from, double[] to)
+        {
+            if (from.Length != to.Length)
+                throw new ArgumentException("Lenghts not equal, impossible to copy !");
+            int chunk;
+            if (to.Length > 100)
+            {
+                chunk = to.Length / 4;
+                Parallel.For(0, 4, i =>
+                {
+                    int endIndex = i == 3 ? to.Length : chunk * (i + 1);
+                    for (int j = i * chunk; j < endIndex; j++)
+                        to[j] = from[j];
+                });
+            }
+            else
+                from.CopyTo(to, 0);
         }
     }
 }
