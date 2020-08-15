@@ -277,7 +277,7 @@ namespace NNLib
             var result = new Tensor(t1.BatchSize, t1.Depth, t1.Rows, t1.Columns);
             if (t1.Columns == t2.Columns && t1.Depth == t2.Depth && (t1.BatchSize == t2.BatchSize || t2.BatchSize == 1))
             {
-                Parallel.For(0, t2.data.Length, i =>
+                Parallel.For(0, t1.data.Length, i =>
                     result.data[i] = func(t1.data[i], t2.data[(t2.BatchSize == 1) ? i % t2.DepthRowsColumns : i]));
 
                 return result;
@@ -316,11 +316,11 @@ namespace NNLib
             }
 
             var result = new Tensor(BatchSize, Depth, Rows, 1);
-            var offset = 0;
 
             Parallel.For(0, BatchSize, b =>
             {
-               for (int d = 0; d < Depth; d++)
+                var offset = b * DepthRowsColumns;
+                for (int d = 0; d < Depth; d++)
                    for (int r = 0; r < Rows; r++)
                    {
                        var res = 0D;
@@ -344,11 +344,12 @@ namespace NNLib
             }
 
             var result = new Tensor(1, Depth, Rows, Columns);
-            Parallel.For(1, BatchSize, b => {
+            for(int b = 1; b < BatchSize; b++)
+            { 
                 var offset = b * DepthRowsColumns;
                 for (int i = 0; i < DepthRowsColumns; i++)
-                    result.data[i] = data[i + offset];
-            });
+                    result.data[i] += data[i + offset];
+            }
 
             return result;
         }

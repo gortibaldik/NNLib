@@ -254,6 +254,42 @@ namespace NNLibXUnitTest
                 for (int c = 0; c < 3; c++)
                     Assert.Equal(result[0, 0, r, c], t3[0, 0, r, c]);
         }
+
+        [Fact]
+        public void SumRowsTest1()
+        {
+            // arrange
+            var t1 = new Tensor(new double[,,,] { { { { 1, 2, 3 }, { 4, 5, 6 } } }, { { { 1, 2, 3 }, { 4, 5, 6 } } } });
+            var r =new double[,,,] { { { { 6 }, { 15 } } }, { { { 6 }, { 15 } } } };
+
+            // act
+            var t2 = t1.SumRows();
+
+            // assert
+            for (int b = 0; b < r.GetLength(0); b++)
+                for (int d = 0; d < r.GetLength(1); d++)
+                    for (int row = 0; row < r.GetLength(2); row++)
+                        for (int c = 0; c < r.GetLength(3); c++)
+                            Assert.Equal(r[b, d, row, c], t2[b, d, row, c]);
+        }
+
+        [Fact]
+        public void SumRowsTest2()
+        {
+            // arrange
+            var t1 = new Tensor(new double[,,,] { { { { 1, 2, 3 }, { 4, 5, 6 } }, { { 1, 2, 3 }, { 4, 5, 6 } } } });
+            var r = new double[,,,] { { { { 6 }, { 15 } }, { { 6 }, { 15 } } } };
+
+            // act
+            var t2 = t1.SumRows();
+
+            // assert
+            for (int b = 0; b < r.GetLength(0); b++)
+                for (int d = 0; d < r.GetLength(1); d++)
+                    for (int row = 0; row < r.GetLength(2); row++)
+                        for (int c = 0; c < r.GetLength(3); c++)
+                            Assert.Equal(r[b, d, row, c], t2[b, d, row, c]);
+        }
         /*
 
 
@@ -346,37 +382,6 @@ namespace NNLibXUnitTest
                     Assert.Equal(result[0, r, c], t3[0, r, c]);
         }
 
-        [Fact]
-        public void SumRowsTest1()
-        {
-            // arrange
-            var t1 = new Tensor(new double[,,] { { { 1, 2, 3 }, { 4, 5, 6 } } });
-            var result = new Tensor(new double[,,] { { { 6 }, { 15 } } });
-
-            // act
-            var t2 = t1.SumRows();
-
-            // assert
-            for (int r = 0; r < t2.Rows; r++)
-                for (int c = 0; c < t2.Columns; c++)
-                    Assert.Equal(result[0, r, c], t2[0, r, c]);
-        }
-
-        [Fact]
-        public void SumRowsTest2()
-        {
-            // arrange
-            var t1 = new Tensor(new double[,,] { { { 1, 2, 3 }, { 4, 5, 6 } }, { { 1, 2, 3 }, { 4, 5, 6 } } });
-            var result = new Tensor(new double[,,] { { { 6 }, { 15 } }, { { 6 }, { 15 } } });
-
-            // act
-            var t2 = t1.SumRows();
-
-            // assert
-            for (int d = 0; d < 2; d++)
-                for (int r = 0; r < t2.Rows; r++)
-                    for (int c = 0; c < t2.Columns; c++)
-                        Assert.Equal(result[d, r, c], t2[d, r, c]);
-        }*/
+        */
     }
 }

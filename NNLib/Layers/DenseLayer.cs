@@ -89,8 +89,8 @@ namespace NNLib.Layers
                 throw new InvalidOperationException("No forward pass before backward pass !");
 
             previousGradient = _activation == null ? previousGradient : _activation.BackwardPass(previousGradient);
-            derivativeWeights = (1/previousGradient.BatchSize) * (previousGradient * lastInput.Transpose()).SumBatch();
-            derivativeBias = _bias == null ? null : (1 / previousGradient.BatchSize) * previousGradient.SumBatch().SumRows();
+            derivativeWeights = (1D/previousGradient.BatchSize) * (previousGradient * lastInput.Transpose()).SumBatch();
+            derivativeBias = _bias == null ? null : (1D / previousGradient.BatchSize) * previousGradient.SumBatch().SumRows();
             Tensor gradient = _weights.Transpose() * previousGradient;
             return gradient;
         }
