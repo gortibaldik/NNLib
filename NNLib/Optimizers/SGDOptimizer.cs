@@ -68,10 +68,14 @@ namespace NNLib.Optimizers
                 {
                     var originalWeights = trainable.GetWeights();
                     trainable.SetWeights(originalWeights - ((1.0 * learningRate) / sizeOfMiniBatch) * gradientsWeights[i]);
+                    gradientsWeights[i] = gradientsWeights[i].ZeroOut();
 
                     var originalBias = trainable.GetBias();
                     if (originalBias != null)
+                    {
                         trainable.SetBias(originalBias - ((1.0 * learningRate) / sizeOfMiniBatch) * gradientsBias[i]);
+                        gradientsBias[i] = gradientsBias[i].ZeroOut();
+                    }
                 }
 
             }

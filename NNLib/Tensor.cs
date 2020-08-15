@@ -387,6 +387,9 @@ namespace NNLib
             return result;
         }
 
+        public Tensor ZeroOut()
+            => new Tensor(BatchSize, Depth, Rows, Columns);
+
         public override string ToString()
         {
             StringBuilder builder = new StringBuilder();

@@ -30,16 +30,32 @@ namespace NNLib.Activations
             if (input.Depth != 1 || input.Columns != 1)
                 throw new NotImplementedException("The softmax layer doesn't support other than 1 x N x 1 shape of the tensor!");
 
-            var sum = 0D;
-            var max = double.MinValue;
-            input.ApplyFunctionOnAllElements(x => 
-            { 
-                if (x > max) 
-                    max = x;
-                return x;
-                });
-            var exponentiated = input.ApplyFunctionOnAllElements(x => { var d = Math.Exp(x-max); sum += d; return d; });
-            var softmax = exponentiated.ApplyFunctionOnAllElements(x => x / sum);
+            var softmax = new Tensor(input.BatchSize, 1, input.Rows, 1);
+            var exponentiated = new Tensor(1, 1, input.Rows, 1);
+            for (int b = 0; b < input.BatchSize; b++)
+            {
+                var max = double.MinValue;
+                var sum = 0D;
+                for (int r = 0; r < input.Rows; r++)
+                {
+                    if (input[b, 0, r, 0] > max)
+                        max = input[b, 0, r, 0];
+                }
+                
+                for (int r = 0; r < input.Rows; r++)
+                {
+                    var d = Math.Exp(input[b, 0, r, 0] - max);
+                    exponentiated[0, 0, r, 0] = d;
+                    sum += d;
+                }
+
+                for (int r = 0; r < input.Rows; r++)
+                {
+                    softmax[b, 0, r, 0] = exponentiated[0, 0, r, 0] / sum;
+                }
+            }
+            //var exponentiated = input.ApplyFunctionOnAllElements(x => { var d = Math.Exp(x-max); sum += d; return d; });
+            //var softmax = exponentiated.ApplyFunctionOnAllElements(x => x / sum);
 
             return softmax;
         }
