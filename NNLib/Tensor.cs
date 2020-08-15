@@ -1,9 +1,10 @@
 ﻿#define FORCE_PARALLELISM
 
 using System;
+using System.Globalization;
 using System.Text;
 using System.Threading.Tasks;
-
+using System.Xml.Schema;
 
 namespace NNLib
 {
@@ -17,212 +18,220 @@ namespace NNLib
     {
         private double[] data;
 
-        public int Batches { get; }
+        public int BatchSize { get; }
         public int Depth { get; }
         public int Rows { get; }
         public int Columns { get; }
         public TensorMultiplicationModes Mode { get; set; } = TensorMultiplicationModes.OnlySameDepth;
 
 
-        private int rowsColumns = 0;
+        internal int RowsColumns { get; }
+        internal int DepthRowsColumns { get; }
 
-        public Tensor(int depth, int rows, int columns, double[] data)
+        public Tensor(int depth, int rows, int columns, double[][] data)
         {
-            if (data.Length != depth * rows * columns)
+            if (data[0].Length != depth * rows * columns)
                 throw new ArgumentException($"array {nameof(data)} doesn't contain enough elements to fill {depth}x{rows}x{columns} tensor !");
 
             Depth = depth;
             Rows = rows;
             Columns = columns;
-            rowsColumns = rows * columns;
-            this.data = new double[data.Length];
+            BatchSize = data.Length;
+            RowsColumns = rows * columns;
+            DepthRowsColumns = Depth * RowsColumns;
+            this.data = new double[data.Length*data[0].Length];
             data.ParallelCopyTo(this.data);
         }
 
-        public Tensor(double[,,] data)
+        public Tensor(double[,,,] data)
         {
-            Depth = data.GetLength(0);
-            Rows = data.GetLength(1);
-            Columns = data.GetLength(2);
-            Batches = 1;
-            rowsColumns = Rows * Columns;
-            this.data = new double[Depth * Rows * Columns];
+            BatchSize = data.GetLength(0);
+            Depth = data.GetLength(1);
+            Rows = data.GetLength(2);
+            Columns = data.GetLength(3);
 
-            for (int d = 0; d < Depth; d++)
-                for (int r = 0; r < Rows; r++)
-                    for (int c = 0; c < Columns; c++)
-                        this[d,r,c] = data[d,r,c];
+            RowsColumns = Rows * Columns;
+            DepthRowsColumns = Depth * RowsColumns;
+            this.data = new double[BatchSize * Depth * Rows * Columns];
+
+            for (int b = 0; b < BatchSize; b++)
+                for (int d = 0; d < Depth; d++)
+                    for (int r = 0; r < Rows; r++)
+                        for (int c = 0; c < Columns; c++)
+                            this[b,d,r,c] = data[b,d,r,c];
         }
 
-        public Tensor(int depth, int rows, int columns)
+        public Tensor(int batchSize, int depth, int rows, int columns)
         {
             Rows = rows;
             Columns = columns;
             Depth = depth;
-            Batches = 1;
-            rowsColumns = rows * columns;
-            data = new double[depth*rows*columns];
+            BatchSize = batchSize;
+            RowsColumns = rows * columns;
+            DepthRowsColumns = Depth * RowsColumns;
+            data = new double[batchSize*depth*rows*columns];
         }
 
-        public Tensor(int depth, int rows, int columns, NInitializer nInit) : this(depth, rows, columns)
+        public Tensor(int batchSize, int depth, int rows, int columns, NInitializer nInit) : this(batchSize, depth, rows, columns)
         { 
             for (int i = 0; i < data.Length; i++)
                 this.data[i] = nInit();
         }
 
-        public double this[int depth, int row, int column]
+        public double this[int batchElement, int depth, int row, int column]
         {
-            get => data[depth*rowsColumns + row*Columns + column];
-            set => data[depth*rowsColumns + row*Columns + column] = value;
+            get
+            {
+                if (batchElement < BatchSize && depth < Depth && row < Rows && column < Columns)
+                    return data[batchElement * DepthRowsColumns + depth * RowsColumns + row * Columns + column];
+
+                throw new IndexOutOfRangeException();
+            }
+            internal set => data[batchElement*DepthRowsColumns + depth*RowsColumns + row*Columns + column] = value;
         }
 
+        public Tensor Reshape(int newBatchSize, int newDepth, int newRows, int newColumns)
+        {
+            if (Depth * Rows * Columns * BatchSize != newRows * newColumns * newDepth * newBatchSize)
+                throw new ArgumentOutOfRangeException($"Cannot reshape {BatchSize}*{Depth}*{Rows}*{Columns} to {newBatchSize}*{newDepth}*{newRows}*{newColumns} !");
+
+            if (newRows < 0 || newColumns < 0 || newDepth < 0 || newBatchSize < 0)
+                throw new ArgumentOutOfRangeException("Dimensions of matrix cannot be less than or equal to zero !");
+
+            var result = new Tensor(newBatchSize, newDepth, newRows, newColumns);
+
+            data.ParallelCopyTo(result.data);
+
+            return result;
+        }
+
+        public Tensor Transpose()
+        {
+            Tensor result = new Tensor(BatchSize, Depth, Columns, Rows);
+            for (int b = 0; b < BatchSize; b++)
+                for (int d = 0; d < Depth; d++)
+                    Parallel.For(0, Rows, r =>
+                    {
+                        for (int c = 0; c < Columns; c++)
+                            result[b, d, c, r] = this[b, d, r, c];
+                    });
+
+            return result;
+        }
 
         public static Tensor operator *(Tensor t1, Tensor t2)
         {
             if (t1.Columns != t2.Rows)
                 throw new ArgumentException($"TENSOR MULTIPLICATION : {nameof(t1.Columns)} not equal to {nameof(t2.Rows)} !");
 
-            if (t1.Depth == t2.Depth)
-                return multiplicationSameDepth(t1, t2);
+            if (t1.BatchSize == t2.BatchSize)
+                return _sameBatchSizeMultiplication(t1, t2);
 
+            else
+                return _differentBatchSizeMultiplication(t1, t2);
+        }
+
+        private static Tensor _sameBatchSizeMultiplication(Tensor t1, Tensor t2)
+        {
+            if (t1.Depth == t2.Depth)
+            {
+                var t1Offset = 0;
+                var t2Offset = 0;
+                var result = new Tensor(t2.BatchSize, t1.Depth, t1.Rows, t2.Columns);
+
+                for (int b = 0; b < t2.BatchSize; b++)
+                    for (int d = 0; d < t1.Depth; d++, t1Offset += t1.RowsColumns, t2Offset += t2.RowsColumns)
+                        _simpleMatrixMultiplication(b, d, t1Offset, t2Offset, t1, t2, result);
+
+                return result;
+            }
             else if (t1.Depth == 1 && t1.Mode == TensorMultiplicationModes.LastLevel)
-                return multiplicationLastDimension(t1, t2);
+            {
+                var t2Offset = (t2.Depth - 1) * t2.RowsColumns;
+                var t1Offset = 0;
+                var result = new Tensor(t1.BatchSize, 1, t1.Rows, t2.Columns);
+
+
+                for (int b = 0; b < t2.BatchSize; b++, t1Offset += t1.DepthRowsColumns, t2Offset += t2.DepthRowsColumns)
+                    _simpleMatrixMultiplication(b, 0, t1Offset, t2Offset, t1, t2, result);
+
+                return result;
+            }
 
             else
                 throw new InvalidOperationException($"TENSOR MULTIPLICATION : non supported values of {nameof(t1.Depth)} : {t1.Depth}, {t2.Depth}");
         }
 
         /// <summary>
-        /// Supposing t1.Depth == t2.Depth && t1.Columns == t2.Rows
-        /// --- !!! checking should be done before calling the method !!! ---
-        /// Each level of depth is treated like a distinct matrix multiplication
-        /// D x R1 x C1 * D x R2 x C2 = D x R1 x C2
+        /// Only supported mode is when t1.BatchSize == 1
         /// </summary>
-        private static Tensor multiplicationSameDepth(Tensor t1, Tensor t2)
+        private static Tensor _differentBatchSizeMultiplication(Tensor t1, Tensor t2)
         {
-            var t1DepthOffset = 0;
-            var t2DepthOffset = 0;
-            var result = new Tensor(t1.Depth, t1.Rows, t2.Columns);
+            if (t1.BatchSize != 1)
+                throw new InvalidOperationException($"TENSOR MULTIPLICATION : non supported t1.BatchSize = {t1.BatchSize} != 1 !");
 
-            for (int d = 0; d < t1.Depth; d++, t1DepthOffset += t1.rowsColumns, t2DepthOffset += t2.rowsColumns)
-                Parallel.For(0, t1.Rows, t1Row =>
+            if (t1.Depth == t2.Depth)
+            {
+                var t2Offset = 0;
+                var result = new Tensor(t2.BatchSize, t1.Depth, t1.Rows, t2.Columns);
+
+                for (int b = 0; b < t2.BatchSize; b++)
                 {
-                    for (int t2Col = 0; t2Col < t2.Columns; t2Col++)
-                    {
-                        var res = 0D;
-                        var t1Offset = t1DepthOffset + t1Row * t1.Columns;
-                        var t2Offset = t2DepthOffset + t2Col;
+                    var t1Offset = 0;
+                    for (int d = 0; d < t1.Depth; d++, t1Offset += t1.RowsColumns, t2Offset += t2.RowsColumns)
+                        _simpleMatrixMultiplication(b, d, t1Offset, t2Offset, t1, t2, result);
+                }
 
-                        // for (int t1Col = 0; t1Col < t1.Columns; t1Col++)
-                        //     res += t1[d, t1Row, t1Col] * t2[d, t1Col, t2Col]
-                        for (int t1Col = 0; t1Col < t1.Columns; t1Col++, t1Offset++, t2Offset += t2.Columns)
-                            res += t1.data[t1Offset] * t2.data[t2Offset];
+                return result;
+            }
+            else if (t1.Depth == 1 && t1.Mode == TensorMultiplicationModes.LastLevel)
+            {
+                var t2Offset = (t2.Depth - 1) * t2.RowsColumns;
+                var result = new Tensor(t2.BatchSize, 1, t1.Rows, t2.Columns);
 
-                        result[d, t1Row, t2Col] = res;
-                    }
-                });
 
-            return result;
+                for (int b = 0; b < t2.BatchSize; b++, t2Offset += t2.DepthRowsColumns)
+                    _simpleMatrixMultiplication(b, 0, t1Start : 0, t2Offset, t1, t2, result);
+
+                return result;
+            }
+
+            else
+                throw new InvalidOperationException($"TENSOR MULTIPLICATION : non supported values of {nameof(t1.Depth)} : {t1.Depth}, {t2.Depth}");
         }
 
-        /// <summary>
-        /// Supposing t1.Depth == 1 && t1.Columns == t2.Rows
-        /// --- !!! checking should be done before calling the method !!! ---
-        /// Last level of depth of t2 is multiplied with the only level of depth of t1
-        /// 1 x R1 x C1 * D x R2 x C2 = 1 x R1 x C2
-        /// </summary>
-        private static Tensor multiplicationLastDimension(Tensor t1, Tensor t2)
+        private static void _simpleMatrixMultiplication(int batch, int depth, int t1Start, int t2Start, Tensor t1, Tensor t2, Tensor result)
         {
-            var t2DepthOffset = (t2.Depth - 1) * t2.rowsColumns;
-            var result = new Tensor(1, t1.Rows, t2.Columns);
-
             Parallel.For(0, t1.Rows, t1Row =>
             {
                 for (int t2Col = 0; t2Col < t2.Columns; t2Col++)
                 {
                     var res = 0D;
-                    var t1Offset = t1Row * t1.Columns;
-                    var t2Offset = t2DepthOffset + t2Col;
+                    var t1Offset = t1Start + t1Row * t1.Columns;
+                    var t2Offset = t2Start + t2Col;
 
                     // for (int t1Col = 0; t1Col < t1.Columns; t1Col++)
                     //     res += t1[d, t1Row, t1Col] * t2[d, t1Col, t2Col]
                     for (int t1Col = 0; t1Col < t1.Columns; t1Col++, t1Offset++, t2Offset += t2.Columns)
                         res += t1.data[t1Offset] * t2.data[t2Offset];
 
-                    result[0, t1Row, t2Col] = res;
+                    result[batch, depth, t1Row, t2Col] = res;
                 }
             });
-
-            return result;
         }
 
         public static Tensor operator *(double d1, Tensor t2)
         {
-            var result = new Tensor(t2.Depth, t2.Rows, t2.Columns);
+            var result = new Tensor(t2.BatchSize, t2.Depth, t2.Rows, t2.Columns);
             Parallel.For(0, t2.data.Length, i =>
                 result.data[i] = d1*t2.data[i]);
 
             return result;
         }
 
-        public static Tensor operator +(Tensor t1, Tensor t2)
-            => elementWiseOp(t1, t2, (x1, x2) => x1 + x2, "ADDITION");
-
-        public static Tensor operator -(Tensor t1, Tensor t2)
-            => elementWiseOp(t1, t2, (x1, x2) => x1 - x2, "SUBTRACTION");
-
-        /// <summary>
-        /// Column-wise tensor operation between 2 matrices. Just 2 supported modes supposing t1.Rows == t2.Rows : 
-        /// 1) t1.Columns == t2.Columns then it's element-wise operation
-        /// 2) t2.Columns == 1 then t2[r, 0] is applied to each element in r-th row of m1
-        /// </summary>
-        private static Tensor elementWiseOp(Tensor t1, Tensor t2, Func<double, double, double> func, string nameOfOperation)
-        {
-            if (t1.Rows != t2.Rows)
-                throw new ArgumentException($"TENSOR {nameOfOperation} : {nameof(t1.Rows)}:{t1.Rows} not equal to {nameof(t2.Rows)}:{t2.Rows} !");
-            if (t1.Columns == t2.Columns && t1.Depth == t2.Depth)
-            {
-                var result = new Tensor(t1.Depth, t1.Rows, t1.Columns);
-                Parallel.For(0, t1.data.Length, i=>
-                    result.data[i] = func(t1.data[i], t2.data[i]));
-
-                return result;
-            }
-            else if (t2.Columns == 1 && t1.Depth == t2.Depth)
-            {
-                var result = new Tensor(t1.Depth, t1.Rows, t1.Columns);
-
-                for (int d = 0; d < t1.Depth; d++)
-                    Parallel.For(0, t1.Rows, r =>
-                    {
-                        int t1Offset = d * t1.rowsColumns + r * t1.Columns;
-                        var t2Data = t2[d, r, 0];
-                        for (int c = 0; c < t1.Columns; c++, t1Offset++)
-                            result.data[t1Offset] = func(t1.data[t1Offset], t2Data);
-                    });
-
-                return result;
-            }
-            else
-                throw new ArgumentException($"MATRIX {nameOfOperation} : NON-SUPPORTED OPERANDS : {nameof(t1.Columns)} : {t1.Columns} ; {nameof(t2.Columns)} : {t2.Columns}");
-        }
-
-        public Tensor Transpose()
-        {
-            Tensor result = new Tensor(Depth, Columns, Rows);
-            for (int d = 0; d < Depth; d++)
-                Parallel.For(0, Rows, r =>
-                {
-                    for (int c = 0; c < Columns; c++)
-                        result[d, c, r] = this[d, r, c];
-                });
-
-            return result;
-        }
-
         public Tensor ApplyFunctionOnAllElements(Func<double, double> func)
         {
-            Tensor result = new Tensor(Depth, Rows, Columns);
+            Tensor result = new Tensor(BatchSize, Depth, Rows, Columns);
 
 #if FORCE_PARALLELISM
             int chunk;
@@ -248,9 +257,111 @@ namespace NNLib
             return result;
         }
 
-        public Tensor ApplyFunctionOnAllElements(Func<double, double, double> func, Tensor auxMatrix)
+
+        public static Tensor operator +(Tensor t1, Tensor t2)
+            => elementWiseOp(t1, t2, (x1, x2) => x1 + x2, "ADDITION");
+
+        public static Tensor operator -(Tensor t1, Tensor t2)
+            => elementWiseOp(t1, t2, (x1, x2) => x1 - x2, "SUBTRACTION");
+
+        /// <summary>
+        /// Column-wise tensor operation between 2 matrices. Just 2 supported modes supposing t1.Rows == t2.Rows : 
+        /// 1) t1.Columns == t2.Columns then it's element-wise operation
+        /// 2) t2.Columns == 1 then t2[r, 0] is applied to each element in r-th row of m1
+        /// </summary>
+        private static Tensor elementWiseOp(Tensor t1, Tensor t2, Func<double, double, double> func, string nameOfOperation)
         {
-            Tensor result = new Tensor(Depth, Rows, Columns);
+            if (t1.Rows != t2.Rows)
+                throw new ArgumentException($"TENSOR {nameOfOperation} : {nameof(t1.Rows)}:{t1.Rows} not equal to {nameof(t2.Rows)}:{t2.Rows} !");
+
+            var result = new Tensor(t1.BatchSize, t1.Depth, t1.Rows, t1.Columns);
+            if (t1.Columns == t2.Columns && t1.Depth == t2.Depth && (t1.BatchSize == t2.BatchSize || t2.BatchSize == 1))
+            {
+                Parallel.For(0, t2.data.Length, i =>
+                    result.data[i] = func(t1.data[i], t2.data[(t2.BatchSize == 1) ? i % t2.DepthRowsColumns : i]));
+
+                return result;
+            }
+            else if (t2.Columns == 1 && t1.Depth == t2.Depth && (t1.BatchSize == t2.BatchSize || t2.BatchSize == 1))
+            {
+                var b1 = 0;
+
+                for (int b = 0; b < t1.BatchSize; b++, b1 += t1.BatchSize == t2.BatchSize ? 1 : 0)
+                    for (int d = 0; d < t1.Depth; d++)
+                    {
+                        var t1Start = b * t1.DepthRowsColumns + d * t1.RowsColumns;
+                        Parallel.For(0, t1.Rows, r =>
+                        {
+                            int t1Offset = t1Start + r * t1.Columns;
+                            var t2Data = t2[b1, d, r, 0];
+                            for (int c = 0; c < t1.Columns; c++, t1Offset++)
+                                result.data[t1Offset] = func(t1.data[t1Offset], t2Data);
+                        });
+                    }
+                return result;
+            }
+            else if (t1.BatchSize != t2.BatchSize && t2.BatchSize != 1)
+                throw new InvalidOperationException($"{nameOfOperation} : invalid combination of batch sizes : {t1.BatchSize} : {t2.BatchSize}");
+            else
+                throw new ArgumentException($"MATRIX {nameOfOperation} : NON-SUPPORTED OPERANDS : {nameof(t1.Columns)} : {t1.Columns} ; {nameof(t2.Columns)} : {t2.Columns}");
+        }
+
+        public Tensor SumRows()
+        {
+            if (Columns == 1) // no reference passing, we need a copy
+            {
+                var res = new Tensor(BatchSize, Depth, Rows, Columns);
+                data.ParallelCopyTo(res.data);
+                return res;
+            }
+
+            var result = new Tensor(BatchSize, Depth, Rows, 1);
+            var offset = 0;
+
+            Parallel.For(0, BatchSize, b =>
+            {
+               for (int d = 0; d < Depth; d++)
+                   for (int r = 0; r < Rows; r++)
+                   {
+                       var res = 0D;
+                       for (int c = 0; c < Columns; c++, offset++)
+                           res += data[offset];
+
+                       result[b, d, r, 0] = res;
+                   }
+            });
+
+            return result;
+        }
+
+        public Tensor SumBatch()
+        {
+            if (BatchSize == 1)
+            {
+                var res = new Tensor(1, Depth, Rows, Columns);
+                data.ParallelCopyTo(res.data);
+                return res;
+            }
+
+            var result = new Tensor(1, Depth, Rows, Columns);
+            Parallel.For(1, BatchSize, b => {
+                var offset = b * DepthRowsColumns;
+                for (int i = 0; i < DepthRowsColumns; i++)
+                    result.data[i] = data[i + offset];
+            });
+
+            return result;
+        }
+
+        /// <summary>
+        /// First argument of func is this[indices] and second is auxMatrix[indices]
+        /// </summary>
+        public Tensor ApplyFunctionOnAllElements(Func<double, double, double> func, Tensor auxMatrix, bool disableChecking = false)
+        {
+            if (!disableChecking && (auxMatrix.BatchSize != BatchSize || auxMatrix.Depth != Depth || auxMatrix.Rows != Rows || auxMatrix.Columns != Columns))
+                throw new InvalidOperationException();
+
+            Tensor result = new Tensor(BatchSize, Depth, Rows, Columns);
 #if FORCE_PARALLELISM
 
             int chunk;
@@ -275,80 +386,26 @@ namespace NNLib
 
             return result;
         }
- 
-        public Tensor Reshape(int newDepth, int newRows, int newColumns)
-        {
-            if (Depth * Rows * Columns != newRows * newColumns * newDepth)
-                throw new ArgumentOutOfRangeException($"Cannot reshape {Rows}*{Columns} to {newRows}*{newColumns} !");
-
-            if (newRows < 0 || newColumns < 0 || newDepth < 0)
-                throw new ArgumentOutOfRangeException("Dimensions of matrix cannot be less than or equal to zero !");
-
-            var result = new Tensor(newDepth, newRows, newColumns);
-
-            data.ParallelCopyTo(result.data);
-
-            return result;
-        }
-
-        public Tensor SumRows()
-        {
-            if (Columns == 1) // no reference passing, we need a copy
-            {
-                var res = new Tensor(Depth, Rows, 1);
-                data.ParallelCopyTo(res.data);
-                return res;
-            }
-
-            var result = new Tensor(Depth, Rows, 1);
-            var offset = 0;
-
-            for (int d = 0; d < Depth; d++)
-                for (int r = 0; r < Rows; r++)
-                {
-                    var res = 0D;
-                    for (int c = 0; c < Columns; c++, offset++)
-                        res += data[offset];
-
-                    result[d, r, 0] = res;
-                }
-
-            return result;
-        }
-
-        public (int depth, int row, int column) MaxIndex()
-        {
-            var max = double.MinValue;
-            int depth=0, row=0, column=0;
-
-            for (int d = 0; d < Depth; d++)
-                for (int r = 0; r < Rows; r++)
-                    for (int c = 0; c < Columns; c++)
-                        if (max < this[d,r,c])
-                        {
-                            max = this[d, r, c];
-                            depth = d;
-                            row = r;
-                            column = c;
-                        }
-
-            return (depth, row, column);
-        }
 
         public override string ToString()
         {
             StringBuilder builder = new StringBuilder();
-            for (int d = 0; d < Depth; d++)
+            for (int b = 0; b < BatchSize; b++)
             {
-                builder.Append($"Depth {d} :\n");
-                for (int r = 0; r < Rows; r++)
+                builder.Append($"Batch {b} :\n");
+                for (int d = 0; d < Depth; d++)
                 {
-                    for (int c = 0; c < Columns - 1; c++)
-                        builder.Append(string.Format("{0,3},", this[d, r, c]));
-                    builder.Append(string.Format("{0,3}\n", this[d, r, Columns - 1]));
+                    builder.Append($"Depth {d} :\n");
+                    for (int r = 0; r < Rows; r++)
+                    {
+                        for (int c = 0; c < Columns - 1; c++)
+                            builder.Append(string.Format("{0,3},", this[b,d, r, c]));
+                        builder.Append(string.Format("{0,3}\n", this[b, d, r, Columns - 1]));
+                    }
                 }
             }
-            return builder.ToString();
+                
+           return builder.ToString();
         }
     }
 
@@ -371,6 +428,14 @@ namespace NNLib
             }
             else
                 from.CopyTo(to, 0);
+        }
+
+        public static void ParallelCopyTo(this double[][] from, double[] to)
+        {
+            if (from.Length*from[1].Length != to.Length)
+                throw new ArgumentException("Lenghts not equal, impossible to copy !");
+            int chunk = from[1].Length;
+            Parallel.For(0, from.GetLength(0), i => from[i].CopyTo(to, i * chunk));
         }
     }
 }

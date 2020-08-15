@@ -7,7 +7,7 @@ namespace NNLib.Optimizers
     {
         void AddLayer(Layer layer);
         void Compile();
-        void UpdateGradient(int index, Tensor gradientWeights, Tensor gradientBias);
+        void RememberGradient(int index, Tensor gradientWeights, Tensor gradientBias);
         void CalculateAndUpdateWeights(int sizeOfMiniBatch, List<Layer> layers);
     }
 }

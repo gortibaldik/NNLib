@@ -124,7 +124,7 @@ namespace NNLib
             for (int i = layers.Count - 1; i >= 0; i--)
             {
                 currentGradient = layers[i].BackwardPass(currentGradient, out Tensor gradientWeights, out Tensor gradientBias);
-                optimizer.UpdateGradient(i, gradientWeights, gradientBias);
+                optimizer.RememberGradient(i, gradientWeights, gradientBias);
             }
 
             sizeOfMiniBatch ??= 0;
@@ -138,28 +138,46 @@ namespace NNLib
             dataset.BatchSize = batchSize;
             while (!dataset.EndTraining)
             {
-                foreach((var trainInput, var trainLabel) in dataset.GetBatch())
+                var (trainInputs, trainLabels) = dataset.GetBatch();
+                if (trainInputs != null)
                 {
-                    Forward(trainInput, trainLabel);
+                    Forward(trainInputs, trainLabels);
                     Backward();
-                }
-                if (sizeOfMiniBatch.HasValue)
+
                     UpdateWeights();
+                }
 
                 if (dataset.EndEpoch)
                 {
                     var loss = 0D;
-                    var vals = 0;
                     var correct = 0;
-                    foreach (var (Input, Label) in dataset.GetValidation())
+                    var (valInputs, valLabels) = dataset.GetValidation();
+                    loss += Forward(valInputs, valLabels);
+
+                    for (int b = 0; b < valLabels.BatchSize; b++)
                     {
-                        loss += Forward(Input, Label);
-                        if (Label.MaxIndex() == LastPrediction.MaxIndex())
+                        var max1 = -1D;
+                        var i1 = -1;
+                        var max2 = -1D;
+                        var i2 = -1;
+                        for (int r = 0; r < valLabels.Rows; r++)
+                        {
+                            if (valLabels[b, 0, r, 0] > max1)
+                            {
+                                max1 = valLabels[b, 0, r, 0];
+                                i1 = r;
+                            }
+                            if(LastPrediction[b, 0, r, 0] > max2)
+                            {
+                                max2 = LastPrediction[b, 0, r, 0];
+                                i2 = r;
+                            }
+                        }
+                        if (i1 == i2)
                             correct++;
-                        vals++;
                     }
-                    loss /= vals;
-                    var accuracy = (double)correct / vals;
+
+                    var accuracy = (double)correct / valLabels.BatchSize;
 
                     Console.WriteLine($"Epoch {epochNumber++} loss : {loss} accuracy : {accuracy}");
                 }
@@ -169,20 +187,35 @@ namespace NNLib
         public void Evaluate(IDataset dataset)
         {
             var loss = 0D;
-            var vals = 0;
             var correct = 0;
-            foreach (var (Input, Label) in dataset.GetTestSet())
-            {
-                if (vals == 0)
-                    Console.WriteLine("Started evaluation...");
+            var (testInputs, testLabels) = dataset.GetTestSet();
+            Console.WriteLine("Started evaluation...");
+            loss += Forward(testInputs, testLabels);
 
-                loss += Forward(Input, Label);
-                if (Label.MaxIndex() == LastPrediction.MaxIndex())
+            for (int b = 0; b < testLabels.BatchSize; b++)
+            {
+                var max1 = -1D;
+                var i1 = -1;
+                var max2 = -1D;
+                var i2 = -1;
+                for (int r = 0; r < testLabels.Rows; r++)
+                {
+                    if (testLabels[b, 0, r, 0] > max1)
+                    {
+                        max1 = testLabels[b, 0, r, 0];
+                        i1 = r;
+                    }
+                    if (LastPrediction[b, 0, r, 0] > max2)
+                    {
+                        max2 = LastPrediction[b, 0, r, 0];
+                        i2 = r;
+                    }
+                }
+                if (i1 == i2)
                     correct++;
-                vals++;
             }
-            loss /= vals;
-            var accuracy = (double)correct / vals;
+
+            var accuracy = (double)correct / testLabels.BatchSize;
 
             Console.WriteLine($"Loss : {loss} accuracy : {accuracy}");
         }

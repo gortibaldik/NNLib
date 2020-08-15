@@ -11,29 +11,27 @@ namespace NNLib.Losses
 
         public Tensor BackwardPass()
         {
-            var result = new Tensor(expectedOutput.Depth, expectedOutput.Rows, expectedOutput.Columns);
+            if (neuralOutput == null || expectedOutput == null)
+                throw new InvalidOperationException("Backward pass before forward pass exception !");
 
-            for (int d = 0; d < expectedOutput.Depth; d++)
-                for (int r = 0; r < expectedOutput.Rows; r++)
-                    result[d, r, 0] = neuralOutput[d, r, 0] - expectedOutput[d, r, 0];
-
+            var result = neuralOutput.ApplyFunctionOnAllElements((actual, expected) => actual - expected, expectedOutput, disableChecking: true);
+            neuralOutput = expectedOutput = null;
             return result;
         }
 
         public double ForwardPass(Tensor neuralOutput, Tensor expectedOutput)
         {
-            if (neuralOutput.Rows != expectedOutput.Rows || neuralOutput.Columns != expectedOutput.Columns || neuralOutput.Depth != expectedOutput.Depth)
+            if (neuralOutput.Rows != expectedOutput.Rows || neuralOutput.Columns != expectedOutput.Columns || neuralOutput.Depth != expectedOutput.Depth
+                || neuralOutput.BatchSize != expectedOutput.BatchSize)
                 throw new InvalidOperationException("The output of the neural net doesn't correspond to the expected output!");
 
             this.neuralOutput = neuralOutput;
             this.expectedOutput = expectedOutput;
             var res = 0D;
 
-            for (int d = 0; d < neuralOutput.Depth; d++)
-                for (int r = 0; r < neuralOutput.Rows; r++)
-                    res -= expectedOutput[d,r,0]*Math.Log(neuralOutput[d,r,0]);
+            neuralOutput.ApplyFunctionOnAllElements((actual, expected) => { res -= expected * Math.Log(actual); return actual; }, expectedOutput, disableChecking : true);
 
-            return res;
+            return res / neuralOutput.BatchSize;
         }
     }
 }

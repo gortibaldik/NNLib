@@ -36,8 +36,8 @@ namespace NNLib.Optimizers
                 var weights = trainable.GetWeights();
                 var bias = trainable.GetBias();
 
-                this.gradientsWeights.Add(new Tensor(weights.Depth, weights.Rows, weights.Columns));
-                this.gradientsBias.Add(bias == null ? null : new Tensor(bias.Depth, bias.Rows, bias.Columns));
+                this.gradientsWeights.Add(new Tensor(weights.BatchSize,weights.Depth, weights.Rows, weights.Columns));
+                this.gradientsBias.Add(bias == null ? null : new Tensor(weights.BatchSize, bias.Depth, bias.Rows, bias.Columns));
             }
         }
 
@@ -45,7 +45,7 @@ namespace NNLib.Optimizers
             => compiled = true;
 
 
-        public void UpdateGradient(int index, Tensor gradientWeights, Tensor gradientBias)
+        public void RememberGradient(int index, Tensor gradientWeights, Tensor gradientBias)
         {
             if (gradientsWeights[index] != null)
             {

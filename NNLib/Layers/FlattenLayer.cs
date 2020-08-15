@@ -11,6 +11,8 @@ namespace NNLib.Layers
         public override int OutColumns { get => 1; }
         public override int OutRows { get => InRows.Value * InColumns.Value * InDepth.Value; }
 
+        private int lastBatchSize;
+
         public FlattenLayer(int inDepth, int inRows, int inColumns)
         {
             InDepth = inDepth;
@@ -28,7 +30,7 @@ namespace NNLib.Layers
             InputCheck(input: previousGradient, fwd: false);
 
             derivativeWeights = derivativeBias = null;
-            return previousGradient.Reshape(InDepth.Value, InRows.Value, InColumns.Value);
+            return previousGradient.Reshape(lastBatchSize, InDepth.Value, InRows.Value, InColumns.Value);
         }
 
         public override void Compile()
@@ -38,7 +40,8 @@ namespace NNLib.Layers
         {
             InputCheck(input);
 
-            return input.Reshape(OutDepth, OutRows, OutColumns);
+            lastBatchSize = input.BatchSize;
+            return input.Reshape(lastBatchSize, OutDepth, OutRows, OutColumns);
         }
     }
 }
