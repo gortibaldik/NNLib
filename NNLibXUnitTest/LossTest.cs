@@ -43,5 +43,11 @@ namespace NNLibXUnitTest
                 for (int c = 0; c < 3; c++)
                     Assert.Equal(expected[0, 0, r, c], actual[0, 0, r, c]);
         }
+
+        [Fact]
+        public void SparseCategoricalCrossEntropyForward()
+        {
+
+        }
     }
 }
