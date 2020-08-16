@@ -150,34 +150,10 @@ namespace NNLib
                 if (dataset.EndEpoch)
                 {
                     var loss = 0D;
-                    var correct = 0;
                     var (valInputs, valLabels) = dataset.GetValidation();
                     loss += Forward(valInputs, valLabels);
 
-                    for (int b = 0; b < valLabels.BatchSize; b++)
-                    {
-                        var max1 = -1D;
-                        var i1 = -1;
-                        var max2 = -1D;
-                        var i2 = -1;
-                        for (int r = 0; r < valLabels.Rows; r++)
-                        {
-                            if (valLabels[b, 0, r, 0] > max1)
-                            {
-                                max1 = valLabels[b, 0, r, 0];
-                                i1 = r;
-                            }
-                            if(LastPrediction[b, 0, r, 0] > max2)
-                            {
-                                max2 = LastPrediction[b, 0, r, 0];
-                                i2 = r;
-                            }
-                        }
-                        if (i1 == i2)
-                            correct++;
-                    }
-
-                    var accuracy = (double)correct / valLabels.BatchSize;
+                    var accuracy = GetAccuracy(valLabels, LastPrediction);
 
                     Console.WriteLine($"Epoch {epochNumber++} loss : {loss} accuracy : {accuracy}");
                 }
@@ -186,28 +162,34 @@ namespace NNLib
 
         public void Evaluate(IDataset dataset)
         {
-            var loss = 0D;
-            var correct = 0;
             var (testInputs, testLabels) = dataset.GetTestSet();
             Console.WriteLine("Started evaluation...");
-            loss += Forward(testInputs, testLabels);
+            var loss = Forward(testInputs, testLabels);
 
-            for (int b = 0; b < testLabels.BatchSize; b++)
+            var accuracy = GetAccuracy(testLabels, LastPrediction);
+
+            Console.WriteLine($"Loss : {loss} accuracy : {accuracy}");
+        }
+
+        private double GetAccuracy(Tensor trueDistro, Tensor probs)
+        {
+            var correct = 0;
+            for (int b = 0; b < trueDistro.BatchSize; b++)
             {
                 var max1 = -1D;
                 var i1 = -1;
                 var max2 = -1D;
                 var i2 = -1;
-                for (int r = 0; r < testLabels.Rows; r++)
+                for (int r = 0; r < trueDistro.Rows; r++)
                 {
-                    if (testLabels[b, 0, r, 0] > max1)
+                    if (trueDistro[b, 0, r, 0] > max1)
                     {
-                        max1 = testLabels[b, 0, r, 0];
+                        max1 = trueDistro[b, 0, r, 0];
                         i1 = r;
                     }
-                    if (LastPrediction[b, 0, r, 0] > max2)
+                    if (probs[b, 0, r, 0] > max2)
                     {
-                        max2 = LastPrediction[b, 0, r, 0];
+                        max2 = probs[b, 0, r, 0];
                         i2 = r;
                     }
                 }
@@ -215,9 +197,7 @@ namespace NNLib
                     correct++;
             }
 
-            var accuracy = (double)correct / testLabels.BatchSize;
-
-            Console.WriteLine($"Loss : {loss} accuracy : {accuracy}");
+            return (double)correct / trueDistro.BatchSize;
         }
 
         public void UpdateWeights()

@@ -92,6 +92,8 @@ namespace NNLib.Layers
             derivativeWeights = (1D/previousGradient.BatchSize) * (previousGradient * lastInput.Transpose()).SumBatch();
             derivativeBias = _bias == null ? null : (1D / previousGradient.BatchSize) * previousGradient.SumBatch().SumRows();
             Tensor gradient = _weights.Transpose() * previousGradient;
+
+            lastInput = null;
             return gradient;
         }
 

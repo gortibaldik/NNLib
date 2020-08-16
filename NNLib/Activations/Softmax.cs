@@ -26,9 +26,8 @@ namespace NNLib.Activations
 
         public Tensor ForwardPass(Tensor input)
         {
-            // not numerically stable!
             if (input.Depth != 1 || input.Columns != 1)
-                throw new NotImplementedException("The softmax layer doesn't support other than 1 x N x 1 shape of the tensor!");
+                throw new NotImplementedException("The softmax layer doesn't support other than B x 1 x N x 1 shape of the tensor !");
 
             var softmax = new Tensor(input.BatchSize, 1, input.Rows, 1);
             var exponentiated = new Tensor(1, 1, input.Rows, 1);

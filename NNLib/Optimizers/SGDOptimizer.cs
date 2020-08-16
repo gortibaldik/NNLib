@@ -25,7 +25,7 @@ namespace NNLib.Optimizers
                 throw new InvalidOperationException("Optimizer already compiled!");
 
             var trainable = layer as ITrainable;
-            // needs to be tested
+            
             if (trainable == null)
             {
                 this.gradientsWeights.Add(null);
