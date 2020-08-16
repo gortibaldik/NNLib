@@ -32,6 +32,7 @@ namespace NNLib.Activations
 
             var softmax = new Tensor(input.BatchSize, 1, input.Rows, 1);
             var exponentiated = new Tensor(1, 1, input.Rows, 1);
+
             for (int b = 0; b < input.BatchSize; b++)
             {
                 var max = double.MinValue;
@@ -54,8 +55,6 @@ namespace NNLib.Activations
                     softmax[b, 0, r, 0] = exponentiated[0, 0, r, 0] / sum;
                 }
             }
-            //var exponentiated = input.ApplyFunctionOnAllElements(x => { var d = Math.Exp(x-max); sum += d; return d; });
-            //var softmax = exponentiated.ApplyFunctionOnAllElements(x => x / sum);
 
             return softmax;
         }

@@ -45,9 +45,38 @@ namespace NNLibXUnitTest
         }
 
         [Fact]
-        public void SparseCategoricalCrossEntropyForward()
+        public void SparseCategoricalCrossEntropyForward1()
         {
+            // arrange
+            var probs = new Tensor(new double[,,,] { { { { 5 }, { 2 }, { 3 }, { 1 } } } });
+            var truee = new Tensor(new double[,,,] { { { { 7 }, { 2 }, { 3 }, { 3 } } } });
+            var expected = -(7 * Math.Log(5) + 2 * Math.Log(2) + 3 * Math.Log(3) + 3 * Math.Log(1));
+            var loss = new SparseCategoricalCrossEntropy();
 
+            // act
+            var actual = loss.ForwardPass(probs, truee);
+
+            // assert
+            Assert.Equal(expected, actual);
+        }
+
+        [Fact]
+        public void SparseCategoricalCrossEntropyForward2()
+        {
+            // arrange
+            var probs = new Tensor(new double[,,,] { { { { 5 }, { 2 }, { 3 }, { 1 } } }, { { { 4 }, { 8 }, { 2 }, { 5 } } } });
+            var truee = new Tensor(new double[,,,] { { { { 7 }, { 2 }, { 3 }, { 3 } } }, { { { 5 }, { 9 }, { 12 }, { 13 } } } });
+            var expected = -(7 * Math.Log(5) + 2 * Math.Log(2) + 3 * Math.Log(3) + 3 * Math.Log(1)) - (5 * Math.Log(4) + 9 * Math.Log(8) + 12 * Math.Log(2) + 13 * Math.Log(5));
+            expected /= 2;
+            var loss = new SparseCategoricalCrossEntropy();
+
+            // act
+            var actual = loss.ForwardPass(probs, truee);
+
+            // assert
+            Assert.Equal(2, probs.BatchSize);
+            Assert.True(probs.BatchSize == truee.BatchSize);
+            Assert.Equal(expected, actual);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿#define FORCE_PARALLELISM
+﻿//#define FORCE_PARALLELISM
 
 using System;
 using System.Globalization;
@@ -229,33 +229,6 @@ namespace NNLib
             return result;
         }
 
-        public Tensor ApplyFunctionOnAllElements(Func<double, double> func)
-        {
-            Tensor result = new Tensor(BatchSize, Depth, Rows, Columns);
-
-#if FORCE_PARALLELISM
-            int chunk;
-            if (result.data.Length > 100)
-            {
-                chunk = result.data.Length / 4;
-                Parallel.For(0, 4, i =>
-                {
-                    int endIndex = i == 3 ? result.data.Length : chunk * (i + 1);
-                    for (int j = i * chunk; j < endIndex; j++)
-                        result.data[j] = func(data[j]);
-                });
-            }
-            else
-                for (int r = 0; r < data.Length; r++)
-                    result.data[r] = func(data[r]);
-#else
-
-            for (int r = 0; r < data.Length; r++)
-                result.data[r] = func(data[r]);
-#endif
-
-            return result;
-        }
 
 
         public static Tensor operator +(Tensor t1, Tensor t2)
@@ -354,36 +327,30 @@ namespace NNLib
             return result;
         }
 
-        /// <summary>
-        /// First argument of func is this[indices] and second is auxMatrix[indices]
-        /// </summary>
-        public Tensor ApplyFunctionOnAllElements(Func<double, double, double> func, Tensor auxMatrix, bool disableChecking = false)
+
+        public Tensor ApplyFunctionOnAllElements(Func<double, double> func)
         {
-            if (!disableChecking && (auxMatrix.BatchSize != BatchSize || auxMatrix.Depth != Depth || auxMatrix.Rows != Rows || auxMatrix.Columns != Columns))
+            Tensor result = new Tensor(BatchSize, Depth, Rows, Columns);
+
+            for (int r = 0; r < data.Length; r++)
+                result.data[r] = func(data[r]);
+
+            return result;
+        }
+
+        /// <summary>
+        /// Traverses all the possible indices of this and applies func.
+        /// First argument of func is this[indices] and second is auxMatrix[indices]. Parallelism is not allowed for aggregating purposes.
+        /// </summary>
+        public Tensor ApplyFunctionOnAllElements(Func<double, double, double> func, Tensor auxTensor, bool disableChecking = false)
+        {
+            if (!disableChecking && (auxTensor.BatchSize != BatchSize || auxTensor.Depth != Depth || auxTensor.Rows != Rows || auxTensor.Columns != Columns))
                 throw new InvalidOperationException();
 
             Tensor result = new Tensor(BatchSize, Depth, Rows, Columns);
-#if FORCE_PARALLELISM
 
-            int chunk;
-            if (result.data.Length > 100)
-            {
-                chunk = result.data.Length / 4;
-                Parallel.For(0, 4, i =>
-                {
-                    int endIndex = i == 3 ? result.data.Length : chunk * (i + 1);
-                    for (int j = i * chunk; j < endIndex; j++)
-                        result.data[j] = func(data[j], auxMatrix.data[j]);
-                });
-            }
-            else
-                for (int r = 0; r < data.Length; r++)
-                    result.data[r] = func(data[r], auxMatrix.data[r]);
-#else
-
-            //for (int r = 0; r < data.Length; r++)
-            //    result.data[r] = func(data[r], auxMatrix.data[r]);
-#endif
+            for (int r = 0; r < data.Length; r++)
+                result.data[r] = func(data[r], auxTensor.data[r]);
 
             return result;
         }
