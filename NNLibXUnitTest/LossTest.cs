@@ -78,5 +78,41 @@ namespace NNLibXUnitTest
             Assert.True(probs.BatchSize == truee.BatchSize);
             Assert.Equal(expected, actual);
         }
+
+        [Fact]
+        public void SparseCategoricalCrossEntropyBackward1()
+        {
+            // arrange
+            var probs = new Tensor(new double[,,,] { { { { 5 }, { 2 }, { 3 }, { 1 } } } });
+            var truee = new Tensor(new double[,,,] { { { { 7 }, { 2 }, { 3 }, { 3 } } } });
+            var expected = new double[,,,] { { { { -2 }, { 0 }, { 0 }, { -2 } } } };
+            var loss = new SparseCategoricalCrossEntropy();
+            loss.ForwardPass(probs, truee);
+
+            // act
+            var actual = loss.BackwardPass();
+
+            // assert
+            for (int r = 0; r < 4; r++)
+                Assert.Equal(expected[0, 0, r, 0], actual[0, 0, r, 0]);
+        }
+
+        [Fact]
+        public void SparseCategoricalCrossEntropyBackward2()
+        {
+            // arrange
+            var probs = new Tensor(new double[,,,] { { { { 5 }, { 2 }, { 3 }, { 1 } } }, { { { 4 }, { 8 }, { 2 }, { 5 } } } });
+            var truee = new Tensor(new double[,,,] { { { { 7 }, { 2 }, { 3 }, { 3 } } }, { { { 5 }, { 9 }, { 12 }, { 13 } } } });
+            var expected = new double[,,,] { { { { -2 }, { 0 }, { 0 }, { -2 } } }, { { { -1 }, { -1 }, { -10 }, { -8 } } } };
+            var loss = new SparseCategoricalCrossEntropy();
+            loss.ForwardPass(probs, truee);
+
+            // act
+            var actual = loss.BackwardPass();
+
+            // assert
+            for (int r = 0; r < 4; r++)
+                Assert.Equal(expected[0, 0, r, 0], actual[0, 0, r, 0]);
+        }
     }
 }
