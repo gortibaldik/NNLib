@@ -2,10 +2,13 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Xml;
+using System.Xml.Schema;
+using System.Xml.Serialization;
 
 namespace NNLib.Layers
 {
-    public class FlattenLayer : Layer
+    public class FlattenLayer : Layer, IXmlSerializable
     {
         public override int OutDepth { get => 1; }
         public override int OutColumns { get => 1; }
@@ -13,16 +16,16 @@ namespace NNLib.Layers
 
         private int lastBatchSize;
 
-        public FlattenLayer(int inDepth, int inRows, int inColumns)
+        public FlattenLayer()
+        {
+            InDepth = InRows = InColumns = null;
+        }
+
+        public FlattenLayer(int inDepth, int inRows, int inColumns) : this()
         {
             InDepth = inDepth;
             InRows = inRows;
             InColumns = inColumns;
-        }
-
-        public FlattenLayer()
-        {
-            InDepth = InRows = InColumns = null;
         }
 
         public override Tensor BackwardPass(Tensor previousGradient, out Tensor derivativeWeights, out Tensor derivativeBias)
@@ -43,5 +46,17 @@ namespace NNLib.Layers
             lastBatchSize = input.BatchSize;
             return input.Reshape(lastBatchSize, OutDepth, OutRows, OutColumns);
         }
+
+        XmlSchema IXmlSerializable.GetSchema()
+            => null;
+
+        void IXmlSerializable.ReadXml(XmlReader reader)
+        {
+            ReadXml(reader);
+            reader.ReadStartElement();
+        }
+
+        void IXmlSerializable.WriteXml(XmlWriter writer)
+            => WriteXml(writer);
     }
 }

@@ -1,11 +1,10 @@
-﻿using NNLib.Optimizers;
-using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System;
+using System.Xml.Schema;
+using System.Xml.Serialization;
 
 namespace NNLib.Layers
 {
-    public class InputLayer : Layer
+    public class InputLayer : Layer, IXmlSerializable
     {
         public InputLayer(int depth, int rows, int columns)
         {
@@ -16,6 +15,11 @@ namespace NNLib.Layers
             OutRows = rows;
             InRows = rows;
         }
+
+        /// <summary>
+        /// Private constructor just for XML deserialization
+        /// </summary>
+        private InputLayer() { }
 
         public override Tensor BackwardPass(Tensor previousGradient, out Tensor derivativeWeights, out Tensor derivativeBias)
         {
@@ -32,6 +36,18 @@ namespace NNLib.Layers
             InputCheck(input);
 
             return input;
+        }
+
+        XmlSchema IXmlSerializable.GetSchema()
+            => null;
+
+        void IXmlSerializable.WriteXml(System.Xml.XmlWriter writer)
+            => WriteXml(writer);
+
+        void IXmlSerializable.ReadXml(System.Xml.XmlReader reader)
+        {
+            ReadXml(reader);
+            reader.ReadStartElement();
         }
     }
 }

@@ -2,6 +2,7 @@
 
 using System;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Schema;
@@ -11,27 +12,43 @@ namespace NNLib
     public enum TensorMultiplicationModes
     {
         OnlySameDepth,
+
+        /// <summary>
+        /// Tensors are multiplied in such a way, that the only depht layer of the 
+        /// first one is multiplied with all the depth layers of the other
+        /// </summary>
         LastLevel
     }
 
     public class Tensor
     {
         private double[] data;
+        internal double[] GetData()
+            => data;
 
         public int BatchSize { get; }
         public int Depth { get; }
         public int Rows { get; }
         public int Columns { get; }
+
+        /// <summary>
+        /// Specifies behavior of multiplication operation in edge cases
+        /// </summary>
         public TensorMultiplicationModes Mode { get; set; } = TensorMultiplicationModes.OnlySameDepth;
 
 
         internal int RowsColumns { get; }
         internal int DepthRowsColumns { get; }
 
+        /// <summary>
+        /// Creates new tensor from data, where BatchSize is data.Length. Doubles are copied from the data array so it's safe to modify data array afterwards.
+        /// Checks if each dimension of data array is the same length and if the length matches depth*rows*columns
+        /// </summary>
         public Tensor(int depth, int rows, int columns, double[][] data)
         {
-            if (data[0].Length != depth * rows * columns)
-                throw new ArgumentException($"array {nameof(data)} doesn't contain enough elements to fill {depth}x{rows}x{columns} tensor !");
+            for (int i = 0; i < data.Length; i++)
+                if (data[i].Length != depth * rows * columns)
+                    throw new ArgumentException($"array {nameof(data)} doesn't contain correct number of elements to fill {depth}x{rows}x{columns} tensor !");
 
             Depth = depth;
             Rows = rows;
@@ -43,6 +60,9 @@ namespace NNLib
             data.ParallelCopyTo(this.data);
         }
 
+        /// <summary>
+        /// Copies the content of data[,,,] and creates new Tensor with dimensions equal to dimensions of the original array
+        /// </summary>
         public Tensor(double[,,,] data)
         {
             BatchSize = data.GetLength(0);
@@ -61,6 +81,9 @@ namespace NNLib
                             this[b,d,r,c] = data[b,d,r,c];
         }
 
+        /// <summary>
+        /// Creates new tensor with specified dimensions with all the elements zeros
+        /// </summary>
         public Tensor(int batchSize, int depth, int rows, int columns)
         {
             Rows = rows;
@@ -72,11 +95,15 @@ namespace NNLib
             data = new double[batchSize*depth*rows*columns];
         }
 
+        /// <summary>
+        /// Creates new tensor with specified dimensions with all the elements initialized with nInit
+        /// </summary>
         public Tensor(int batchSize, int depth, int rows, int columns, NInitializer nInit) : this(batchSize, depth, rows, columns)
         { 
             for (int i = 0; i < data.Length; i++)
                 this.data[i] = nInit();
         }
+
 
         public double this[int batchElement, int depth, int row, int column]
         {
@@ -377,36 +404,6 @@ namespace NNLib
             }
                 
            return builder.ToString();
-        }
-    }
-
-    static class DoubleArrayExtensions
-    {
-        public static void ParallelCopyTo(this double[] from, double[] to)
-        {
-            if (from.Length != to.Length)
-                throw new ArgumentException("Lenghts not equal, impossible to copy !");
-            int chunk;
-            if (to.Length > 100)
-            {
-                chunk = to.Length / 4;
-                Parallel.For(0, 4, i =>
-                {
-                    int endIndex = i == 3 ? to.Length : chunk * (i + 1);
-                    for (int j = i * chunk; j < endIndex; j++)
-                        to[j] = from[j];
-                });
-            }
-            else
-                from.CopyTo(to, 0);
-        }
-
-        public static void ParallelCopyTo(this double[][] from, double[] to)
-        {
-            if (from.Length*from[1].Length != to.Length)
-                throw new ArgumentException("Lenghts not equal, impossible to copy !");
-            int chunk = from[1].Length;
-            Parallel.For(0, from.GetLength(0), i => from[i].CopyTo(to, i * chunk));
         }
     }
 }

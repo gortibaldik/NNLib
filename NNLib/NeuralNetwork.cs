@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
+using System.Xml;
 using System.Xml.Schema;
-
+using System.Xml.Serialization;
 using NNLib.Activations;
 using NNLib.Layers;
 using NNLib.Losses;
@@ -12,7 +14,7 @@ using NNLib.Optimizers;
 
 namespace NNLib
 {
-    public class NeuralNetwork
+    public class NeuralNetwork : IXmlSerializable
     {
         private readonly List<Layer> layers = new List<Layer>();
         private ILossLayer loss = null;
@@ -91,9 +93,6 @@ namespace NNLib
 
         public Tensor Predict(Tensor input)
         {
-            if (!compiled)
-                throw new InvalidOperationException("Cannot predict on uncompiled network!");
-
             if (input.Rows != layers[0].InRows || input.Columns != layers[0].InColumns || input.Depth != layers[0].InDepth)
                 throw new ArgumentException("Input dimensions doesn't match first layers inDimensions !");
 
@@ -216,6 +215,53 @@ namespace NNLib
             return builder.ToString();
         }
 
+        public XmlSchema GetSchema()
+            => null;
 
+        public void ReadXml(XmlReader reader)
+        {
+            var layerFactory = new LayerFactory();
+            reader.MoveToContent();
+            reader.ReadStartElement(nameof(NeuralNetwork));
+            if (reader.NodeType == XmlNodeType.Whitespace)
+                reader.MoveToContent();
+
+            while(reader.NodeType != XmlNodeType.EndElement)
+            {
+                var layer = layerFactory.CreateLayer(reader.Name);
+                var serializable = layer as IXmlSerializable;
+
+                if (serializable != null)
+                {
+                    // obviously after serializable changes its properties
+                    // on itself the changes reflect to layer
+                    serializable.ReadXml(reader);
+                    layers.Add(layer);
+                }
+
+                if (reader.NodeType == XmlNodeType.Whitespace)
+                    reader.MoveToContent();
+            }
+        }
+
+        public void WriteXml(XmlWriter writer)
+        {
+            foreach (var layer in layers)
+            {
+                var serializable = layer as IXmlSerializable;
+                if (serializable == null)
+                {
+                    var serializer = new XmlSerializer(layer.GetType());
+                    serializer.Serialize(writer, layer);
+                }
+                else
+                {
+                    var type = layer.GetType().Name;
+                    writer.WriteStartElement(type);
+                    serializable.WriteXml(writer);
+                    writer.WriteEndElement();
+                }
+            }
+        }
     }
 }

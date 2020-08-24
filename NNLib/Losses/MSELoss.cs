@@ -30,9 +30,7 @@ namespace NNLib.Losses
             if (neuralOutput == null || expectedOutput == null)
                 throw new InvalidOperationException("Backward pass before forward pass exception !");
 
-            Tensor result = new Tensor(neuralOutput.BatchSize, neuralOutput.Depth, neuralOutput.Rows, neuralOutput.Columns);
-
-            result = neuralOutput.ApplyFunctionOnAllElements((got, expected) => 2 * (got - expected), expectedOutput, disableChecking : true);
+            var result = neuralOutput.ApplyFunctionOnAllElements((got, expected) => 2 * (got - expected), expectedOutput, disableChecking : true);
 
             neuralOutput = null;
             expectedOutput = null;
