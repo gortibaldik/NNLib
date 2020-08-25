@@ -24,19 +24,34 @@ namespace NNLib.Layers
         private Tensor lastInput = null;
         private Tensor lastOutput = null;
 
+        // only for serialization - deserialization purposes
         private DenseLayer() { }
 
-
+        /// <summary>
+        /// Creates new dense layer.
+        /// </summary>
+        /// <param name="outRows">Number of neurons in the DenseLayer</param>
+        /// <param name="activation">If not specified, LinearActivation is used</param>
+        /// <param name="weightInit">If not specified, NInitGlorotUniform is used</param>
+        /// <param name="biasInit">If not specified, NInitZero is used</param>
         public DenseLayer(int outRows, IActivationLayer activation = null, NInitializer weightInit = null, NInitializer biasInit = null)
         {
             _activation = activation ?? new LinearActivation();
-            _weightInit = weightInit ?? NeuronInitializers.NInitNormal;
-            _biasInit = biasInit ?? NeuronInitializers.NInitZero;
+            _weightInit = weightInit;
+            _biasInit = biasInit;
             OutRows = outRows > 0 ? outRows : throw new ArgumentException("Weight dimensions must be greater than 0!");
 
             // InDimensions kept null until NeuralNetwork class uses internal setter
         }
 
+        /// <summary>
+        /// Creates new dense layer.
+        /// </summary>
+        /// <param name="inputShape">Shape of the input vector</param>
+        /// <param name="outRows">Number of neurons in the DenseLayer</param>
+        /// <param name="activation">If not specified, LinearActivation is used</param>
+        /// <param name="weightInit">If not specified, NInitGlorotUniform is used</param>
+        /// <param name="biasInit">If not specified, NInitZero is used</param>
         public DenseLayer(Shape inputShape, int outRows, IActivationLayer activation = null, NInitializer weightInit = null, NInitializer biasInit = null) : this(outRows, activation, weightInit, biasInit)
         {
             InRows = inputShape.Rows;
@@ -44,11 +59,12 @@ namespace NNLib.Layers
             InDepth = inputShape.Depth;
         }
 
-        public DenseLayer(int inRows, int outRows, NInitializer weightInit, NInitializer biasInit, IActivationLayer activation) : this(outRows, activation, weightInit, biasInit)
-        {
-            InRows = inRows > 0 ? inRows : throw new ArgumentException("Weight dimensions must be greater than 0!");
-        }
-
+        /// <summary>
+        /// Creates new DenseLayer with specified weights and bias. The tensors are used by reference. 
+        /// </summary>
+        /// <param name="weights">Cannot be null</param>
+        /// <param name="bias">Can be null</param>
+        /// <param name="activation">If null Linear activation is used</param>
         public DenseLayer(Tensor weights, Tensor bias, IActivationLayer activation)
         {
             if (weights == null)
@@ -74,17 +90,27 @@ namespace NNLib.Layers
 
             if (_weights == null)
             {
+                if (_weightInit == null)
+                    _weightInit = NeuronInitializers.NInitGlorotUniform(OutRows, (int)InRows);
+
+                if (_biasInit == null)
+                    _biasInit = NeuronInitializers.NInitZero;
+
                 // W*I + B = O
                 // where W - _weights, B - _bias, I - input, O - output
                 // therefore outputDimension
-                _weights = new Tensor(1, 1, OutRows, (int)InRows, _weightInit);
-                _weights.Mode = TensorMultiplicationModes.LastLevel;
+                _weights = new Tensor(1, 1, OutRows, (int)InRows, _weightInit)
+                {
+                    Mode = TensorMultiplicationModes.LastLevel
+                };
 
                 // bias isn't used for multiplication only for column-wise
                 // addition, therefore names OutDim, InDim don't have any special
                 // meaning for bias
-                _bias = new Tensor(1, 1, OutRows, 1, _biasInit);
-                _bias.Mode = TensorMultiplicationModes.LastLevel;
+                _bias = new Tensor(1, 1, OutRows, 1, _biasInit)
+                {
+                    Mode = TensorMultiplicationModes.LastLevel
+                };
             }
 
             compiled = true;
@@ -93,6 +119,8 @@ namespace NNLib.Layers
         public override Tensor ForwardPass(Tensor resultPrevious, bool training = false)
         {
             InputCheck(resultPrevious);
+            forwardPerformed = true;
+
             lastInput = resultPrevious;
             lastOutput = _weights * resultPrevious + _bias;
             Tensor result = (_activation == null) ? lastOutput : _activation.ForwardPass(lastOutput);
@@ -102,15 +130,20 @@ namespace NNLib.Layers
         public override Tensor BackwardPass(Tensor previousGradient, out Tensor derivativeWeights, out Tensor derivativeBias)
         {
             InputCheck(input: previousGradient, fwd: false);
-            if (lastInput == null)
+            if (lastInput == null || !forwardPerformed)
                 throw new InvalidOperationException("No forward pass before backward pass !");
 
             previousGradient = _activation == null ? previousGradient : _activation.BackwardPass(previousGradient);
+
+            // out parameters .BatchSize should be 1 so only the average across all the batches is returned
             derivativeWeights = (1D/previousGradient.BatchSize) * (previousGradient * lastInput.Transpose()).SumBatch();
             derivativeBias = _bias == null ? null : (1D / previousGradient.BatchSize) * previousGradient.SumBatch().SumRows();
+
+            // gradient.BatchSize should equal previousGradient.BatchSize
             Tensor gradient = _weights.Transpose() * previousGradient;
 
             lastInput = null;
+            forwardPerformed = false;
             return gradient;
         }
 
@@ -126,13 +159,14 @@ namespace NNLib.Layers
         Tensor ITrainable.GetBias()
             => _bias;
 
-        ActivationFunctions IWithActivation.ActivationUsed { get => _activation.Name; }
+        string IWithActivation.ActivationUsed { get => _activation.GetType().Name; }
 
         XmlSchema IXmlSerializable.GetSchema()
             => null;
 
         void IXmlSerializable.ReadXml(XmlReader reader)
         {
+            // reads and sets input vector dimensions and output vector dimensions
             ReadXml(reader);
             var activationStr = reader.GetAttribute(nameof(_activation));
             _activation = (new ActivationFactory()).Create(activationStr);
@@ -144,12 +178,12 @@ namespace NNLib.Layers
                 throw new FormatException("Wrong xml representation, weights not present in the serialized layer! ");
 
             var data = new double[1][];
-            data[0] = weightsStr.Deserialize();
+            data[0] = weightsStr.DeserializeIntoDoubleArray();
             _weights = new Tensor(1, OutRows, (int)InRows, data);
 
             if (biasStr != null)
             {
-                data[0] = biasStr.Deserialize();
+                data[0] = biasStr.DeserializeIntoDoubleArray();
                 _bias = new Tensor(1, OutRows, 1, data);
             }
 
@@ -158,30 +192,17 @@ namespace NNLib.Layers
 
         void IXmlSerializable.WriteXml(XmlWriter writer)
         {
+            // writes input and output dimensions
             WriteXml(writer);
             writer.WriteAttributeString(nameof(_activation), _activation.GetType().Name);
 
             if (_weights == null)
                 throw new InvalidOperationException("Cannot serialize non compiled network !");
 
-            writer.WriteAttributeString(nameof(_weights), Convert(_weights));
+            writer.WriteAttributeString(nameof(_weights), _weights.SerializeToString());
 
             if (_bias != null)
-                writer.WriteAttributeString(nameof(_bias), Convert(_bias));
-        }
-
-        private string Convert(Tensor tensor)
-        {
-            var strBuilder = new StringBuilder();
-            var data = tensor.GetData();
-            strBuilder.Append($"{{LENGTH:{data.Length}}}");
-
-            for (int i = 0; i < data.Length - 1; i++)
-                strBuilder.Append(string.Format(CultureInfo.InvariantCulture, "{0:G17};", data[i]));
-
-            strBuilder.Append(string.Format(CultureInfo.InvariantCulture, "{0:G17}", data[^1]));
-
-            return strBuilder.ToString();
+                writer.WriteAttributeString(nameof(_bias), _bias.SerializeToString());
         }
 
         public override string ToString()

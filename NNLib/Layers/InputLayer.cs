@@ -6,8 +6,14 @@ namespace NNLib.Layers
 {
     public class InputLayer : Layer, IXmlSerializable
     {
+        /// <summary>
+        /// Creates new InputLayer accepting input tensor of specified dimensions.
+        /// </summary>
         public InputLayer(int depth, int rows, int columns)
         {
+            if (rows < 0 || columns < 0 || depth < 0)
+                throw new ArgumentOutOfRangeException("Dimensions of the input tensor cannot be less than or equal to zero !");
+
             OutDepth = depth;
             InDepth = depth;
             OutColumns = columns;
@@ -23,8 +29,12 @@ namespace NNLib.Layers
 
         public override Tensor BackwardPass(Tensor previousGradient, out Tensor derivativeWeights, out Tensor derivativeBias)
         {
-            derivativeWeights = null;
-            derivativeBias = null;
+            InputCheck(previousGradient, fwd : false);
+            if (!forwardPerformed)
+                throw new InvalidOperationException("No forward pass before backward pass !");
+            // not trainable, output nulls
+            derivativeWeights = derivativeBias = null;
+
             return previousGradient;
         }
 
@@ -42,11 +52,14 @@ namespace NNLib.Layers
             => null;
 
         void IXmlSerializable.WriteXml(System.Xml.XmlWriter writer)
+            // writes input and output dimensions
             => WriteXml(writer);
 
         void IXmlSerializable.ReadXml(System.Xml.XmlReader reader)
         {
+            // reads input and output dimensions
             ReadXml(reader);
+            // consumes attribute element
             reader.ReadStartElement();
         }
     }

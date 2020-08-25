@@ -6,23 +6,21 @@ using System.Text;
 namespace NNLib.Activations
 {
     /// <summary>
-    /// Only one supported mode, with 1xNx1 tensor shape at the input and softmax right before CrossEntropy Loss
+    /// Implementation cannot be considered as complete or even partially complete. 
+    /// Only one supported mode, with SparseCategoricalCrossEntropy directly following
+    /// the softmax and softmax.ForwardPass accepting only tensors of shape B x 1 x R x 1
     /// </summary>
     public class Softmax : IActivationLayer
     {
-        public ActivationFunctions Name { get => ActivationFunctions.Softmax; }
 
         /// <summary>
-        /// This isn't real and shouldn't be considered as a real implementation of the softmax activation. 
-        /// Neural network itself will check if 
+        /// Only one supported mode, with SparseCategoricalCrossEntropy directly following
+        /// the softmax. Hence all the computation of gradient of SparseCategoricalCrossentropy(Softmax(neuralOutput)) 
+        /// with respect to neuralOutput is left for SparseCategoricalCrossentropy.BackwardPass
         /// </summary>
-        /// <param name="previousGradient"></param>
-        /// <returns></returns>
+        /// <returns>Exactly the input.</returns>
         public Tensor BackwardPass(Tensor previousGradient)
             => previousGradient;
-
-        public Tensor BackwardPassFromCrossEntropy(Tensor previousGradient, bool alreadyComputed = true)
-            => alreadyComputed ? previousGradient : BackwardPass(previousGradient);
 
         public Tensor ForwardPass(Tensor input)
         {
@@ -36,12 +34,20 @@ namespace NNLib.Activations
             {
                 var max = double.MinValue;
                 var sum = 0D;
+
+                // For the numerical stability normalization of 
+                // each row is performed.
+                // Since exp() is monotonic
+                // if exp(x) < exp(y) then exp(x-max) < exp(y-max)
+
+                // finding maximum of each batch
                 for (int r = 0; r < input.Rows; r++)
                 {
                     if (input[b, 0, r, 0] > max)
                         max = input[b, 0, r, 0];
                 }
                 
+                // normalizing each input and exponentiating
                 for (int r = 0; r < input.Rows; r++)
                 {
                     var d = Math.Exp(input[b, 0, r, 0] - max);

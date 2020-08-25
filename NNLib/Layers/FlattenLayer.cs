@@ -23,6 +23,9 @@ namespace NNLib.Layers
 
         public FlattenLayer(int inDepth, int inRows, int inColumns) : this()
         {
+            if (inRows < 0 || inColumns < 0 || inDepth < 0)
+                throw new ArgumentOutOfRangeException("Dimensions of the tensor cannot be less than or equal to zero !");
+
             InDepth = inDepth;
             InRows = inRows;
             InColumns = inColumns;
@@ -31,8 +34,13 @@ namespace NNLib.Layers
         public override Tensor BackwardPass(Tensor previousGradient, out Tensor derivativeWeights, out Tensor derivativeBias)
         {
             InputCheck(input: previousGradient, fwd: false);
-
+            if (!forwardPerformed)
+                throw new InvalidOperationException("No forward pass before backward pass !");
+                
+            // not trainable, output nulls
             derivativeWeights = derivativeBias = null;
+            forwardPerformed = false;
+
             return previousGradient.Reshape(lastBatchSize, InDepth.Value, InRows.Value, InColumns.Value);
         }
 
@@ -43,6 +51,7 @@ namespace NNLib.Layers
         {
             InputCheck(input);
 
+            forwardPerformed = true;
             lastBatchSize = input.BatchSize;
             return input.Reshape(lastBatchSize, OutDepth, OutRows, OutColumns);
         }
@@ -52,11 +61,14 @@ namespace NNLib.Layers
 
         void IXmlSerializable.ReadXml(XmlReader reader)
         {
+            // reads input and output dimensions
             ReadXml(reader);
+            // consumes attribute element
             reader.ReadStartElement();
         }
 
         void IXmlSerializable.WriteXml(XmlWriter writer)
+            // writes input and output dimensions
             => WriteXml(writer);
     }
 }

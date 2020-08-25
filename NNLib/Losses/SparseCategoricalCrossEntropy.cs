@@ -4,11 +4,23 @@ using System.Text;
 
 namespace NNLib.Losses
 {
+    /// <summary>
+    /// Implementation cannot be considered as complete or even partially complete. 
+    /// Only one supported mode, with SparseCategoricalCrossEntropy directly following
+    /// the softmax
+    /// </summary>
     public class SparseCategoricalCrossEntropy : ILossLayer
     {
         private Tensor neuralOutput;
         private Tensor expectedOutput;
 
+        /// <summary>
+        /// Only one supported mode, with SparseCategoricalCrossEntropy directly following
+        /// the softmax. Hence the result of the BackwardPass isn't the gradient of the 
+        /// SparseCategoricalCrossEntropy with respect to softmax(neuralOutput).
+        /// The result is the gradient of SparseCategoricalCrossEntropy(softmax(neuralOutput))
+        /// with respect to neuralOutput.
+        /// </summary>
         public Tensor BackwardPass()
         {
             if (neuralOutput == null || expectedOutput == null)

@@ -14,8 +14,13 @@ namespace NNLib
         OnlySameDepth,
 
         /// <summary>
-        /// Tensors are multiplied in such a way, that the only depht layer of the 
-        /// first one is multiplied with all the depth layers of the other
+        /// 2 supported operations : 
+        /// if the multiplied tensors share the same 
+        /// Depth and BatchSize dimensions, then expect the default behavior, 
+        /// 
+        /// if the tensor on the LEFT side of multiplication has LastLevel specified,
+        /// and its Depth == 1, then its only Depth level is multiplied with all the 
+        /// Depth levels in the second Tensor
         /// </summary>
         LastLevel
     }
@@ -46,8 +51,16 @@ namespace NNLib
         /// </summary>
         public Tensor(int depth, int rows, int columns, double[][] data)
         {
+            if (data == null)
+                throw new ArgumentException($"Null {nameof(data)} array argument passed !");
+
+            if (rows < 0 || columns < 0 || depth < 0)
+                throw new ArgumentOutOfRangeException("Dimensions of the tensor cannot be less than or equal to zero !");
+
             for (int i = 0; i < data.Length; i++)
-                if (data[i].Length != depth * rows * columns)
+                if (data[i] == null)
+                    throw new ArgumentException($"Null element of {nameof(data)} array argument passed !");
+                else if (data[i].Length != depth * rows * columns)
                     throw new ArgumentException($"array {nameof(data)} doesn't contain correct number of elements to fill {depth}x{rows}x{columns} tensor !");
 
             Depth = depth;
@@ -65,6 +78,9 @@ namespace NNLib
         /// </summary>
         public Tensor(double[,,,] data)
         {
+            if (data == null)
+                throw new ArgumentException($"Null {nameof(data)} array argument passed !");
+
             BatchSize = data.GetLength(0);
             Depth = data.GetLength(1);
             Rows = data.GetLength(2);
@@ -86,6 +102,9 @@ namespace NNLib
         /// </summary>
         public Tensor(int batchSize, int depth, int rows, int columns)
         {
+            if (rows < 0 || columns < 0 || depth < 0 || batchSize < 0)
+                throw new ArgumentOutOfRangeException("Dimensions of the tensor cannot be less than or equal to zero !");
+
             Rows = rows;
             Columns = columns;
             Depth = depth;
@@ -107,6 +126,7 @@ namespace NNLib
 
         public double this[int batchElement, int depth, int row, int column]
         {
+            // checks only on getter, since setter is internal, there is assumption that its user knows what to do
             get
             {
                 if (batchElement < BatchSize && depth < Depth && row < Rows && column < Columns)
@@ -117,13 +137,16 @@ namespace NNLib
             internal set => data[batchElement*DepthRowsColumns + depth*RowsColumns + row*Columns + column] = value;
         }
 
+        /// <summary>
+        /// Creates NEW Tensor with specified dimensions, data from this are COPIED to new Tensor
+        /// </summary>
         public Tensor Reshape(int newBatchSize, int newDepth, int newRows, int newColumns)
         {
             if (Depth * Rows * Columns * BatchSize != newRows * newColumns * newDepth * newBatchSize)
                 throw new ArgumentOutOfRangeException($"Cannot reshape {BatchSize}*{Depth}*{Rows}*{Columns} to {newBatchSize}*{newDepth}*{newRows}*{newColumns} !");
 
             if (newRows < 0 || newColumns < 0 || newDepth < 0 || newBatchSize < 0)
-                throw new ArgumentOutOfRangeException("Dimensions of matrix cannot be less than or equal to zero !");
+                throw new ArgumentOutOfRangeException("Dimensions of the tensor cannot be less than or equal to zero!");
 
             var result = new Tensor(newBatchSize, newDepth, newRows, newColumns);
 
@@ -132,6 +155,12 @@ namespace NNLib
             return result;
         }
 
+        /// <summary>
+        /// Transposes only the matrix part of the tensor (the last 2 dimensions) and returns it as new Tensor.
+        /// The content of the original tensor remains unchanged.
+        /// Dimensions of the old tensor : BxDxRxC
+        /// Dimensions of the new tensor : BxDxCxR
+        /// </summary>
         public Tensor Transpose()
         {
             Tensor result = new Tensor(BatchSize, Depth, Columns, Rows);
@@ -145,7 +174,12 @@ namespace NNLib
 
             return result;
         }
-
+        
+        /// <summary>
+        /// Multiplies only the matrix parts of the tensors. Can be viewed as 
+        /// t2.BatchSize * t2.Depth multiplications of corresponding matrices
+        /// in tensors t1 and t2. Mode of multiplication depends on t1.Mode.
+        /// </summary>
         public static Tensor operator *(Tensor t1, Tensor t2)
         {
             if (t1.Columns != t2.Rows)
@@ -162,6 +196,8 @@ namespace NNLib
         {
             if (t1.Depth == t2.Depth)
             {
+                // calculations of offsets to t1.data and t2.data arrays to
+                // prevent usage of indexers
                 var t1Offset = 0;
                 var t2Offset = 0;
                 var result = new Tensor(t2.BatchSize, t1.Depth, t1.Rows, t2.Columns);
@@ -174,6 +210,8 @@ namespace NNLib
             }
             else if (t1.Depth == 1 && t1.Mode == TensorMultiplicationModes.LastLevel)
             {
+                // calculations of offsets to t1.data and t2.data arrays to
+                // prevent usage of indexers
                 var t2Offset = (t2.Depth - 1) * t2.RowsColumns;
                 var t1Offset = 0;
                 var result = new Tensor(t1.BatchSize, 1, t1.Rows, t2.Columns);
@@ -204,6 +242,7 @@ namespace NNLib
 
                 for (int b = 0; b < t2.BatchSize; b++)
                 {
+                    // t1.BatchSize == 1 therefore t1Offset is zeroed after each layer of Batch dimension
                     var t1Offset = 0;
                     for (int d = 0; d < t1.Depth; d++, t1Offset += t1.RowsColumns, t2Offset += t2.RowsColumns)
                         _simpleMatrixMultiplication(b, d, t1Offset, t2Offset, t1, t2, result);
@@ -216,9 +255,9 @@ namespace NNLib
                 var t2Offset = (t2.Depth - 1) * t2.RowsColumns;
                 var result = new Tensor(t2.BatchSize, 1, t1.Rows, t2.Columns);
 
-
+                // depth and batch of the first dimension is always zero at the start of multiplication
                 for (int b = 0; b < t2.BatchSize; b++, t2Offset += t2.DepthRowsColumns)
-                    _simpleMatrixMultiplication(b, 0, t1Start : 0, t2Offset, t1, t2, result);
+                    _simpleMatrixMultiplication(b, depth : 0, t1Start : 0, t2Offset, t1, t2, result);
 
                 return result;
             }
@@ -231,14 +270,14 @@ namespace NNLib
         {
             Parallel.For(0, t1.Rows, t1Row =>
             {
+                // simple matrix multiplication with clever usage of indices to prevent
+                // usage of indexers and recomputations
                 for (int t2Col = 0; t2Col < t2.Columns; t2Col++)
                 {
                     var res = 0D;
                     var t1Offset = t1Start + t1Row * t1.Columns;
                     var t2Offset = t2Start + t2Col;
 
-                    // for (int t1Col = 0; t1Col < t1.Columns; t1Col++)
-                    //     res += t1[d, t1Row, t1Col] * t2[d, t1Col, t2Col]
                     for (int t1Col = 0; t1Col < t1.Columns; t1Col++, t1Offset++, t2Offset += t2.Columns)
                         res += t1.data[t1Offset] * t2.data[t2Offset];
 
@@ -247,6 +286,9 @@ namespace NNLib
             });
         }
 
+        /// <summary>
+        /// Each element of the tensor is multiplied by the double
+        /// </summary>
         public static Tensor operator *(double d1, Tensor t2)
         {
             var result = new Tensor(t2.BatchSize, t2.Depth, t2.Rows, t2.Columns);
@@ -275,6 +317,9 @@ namespace NNLib
                 throw new ArgumentException($"TENSOR {nameOfOperation} : {nameof(t1.Rows)}:{t1.Rows} not equal to {nameof(t2.Rows)}:{t2.Rows} !");
 
             var result = new Tensor(t1.BatchSize, t1.Depth, t1.Rows, t1.Columns);
+
+            // if all the dimensions are the same, iteration through all the elements of both matrices suffices
+            // otherwise it's needed to compute index of t2 modulo number of elements in the only batch of t2
             if (t1.Columns == t2.Columns && t1.Depth == t2.Depth && (t1.BatchSize == t2.BatchSize || t2.BatchSize == 1))
             {
                 Parallel.For(0, t1.data.Length, i =>
@@ -303,11 +348,17 @@ namespace NNLib
             else if (t1.BatchSize != t2.BatchSize && t2.BatchSize != 1)
                 throw new InvalidOperationException($"{nameOfOperation} : invalid combination of batch sizes : {t1.BatchSize} : {t2.BatchSize}");
             else
-                throw new ArgumentException($"MATRIX {nameOfOperation} : NON-SUPPORTED OPERANDS : {nameof(t1.Columns)} : {t1.Columns} ; {nameof(t2.Columns)} : {t2.Columns}");
+                throw new ArgumentException($"TENSOR {nameOfOperation} : NON-SUPPORTED OPERANDS : {nameof(t1.Columns)} : {t1.Columns} ; {nameof(t2.Columns)} : {t2.Columns}");
         }
 
+        /// <summary>
+        /// Sums the rows (all the elements of the last dimension) of the tensor and returns the result as the new tensor.
+        /// The content of the original tensor remains unchanged
+        /// </summary>
+        /// <returns></returns>
         public Tensor SumRows()
         {
+            // small optimization
             if (Columns == 1) // no reference passing, we need a copy
             {
                 var res = new Tensor(BatchSize, Depth, Rows, Columns);
@@ -334,6 +385,11 @@ namespace NNLib
             return result;
         }
 
+        /// <summary>
+        /// Sums all the layers of the batch dimension element-wise. Returns tensor with the result, 
+        /// The content of the original tensor remains unchanged.
+        /// </summary>
+        /// <returns></returns>
         public Tensor SumBatch()
         {
             if (BatchSize == 1)
@@ -354,7 +410,11 @@ namespace NNLib
             return result;
         }
 
-
+        /// <summary>
+        /// Traverses all the possible indices of this and applies func.
+        /// Parallelism is not allowed for aggregating purposes.
+        /// Result is returned as new tensor
+        /// The content of the original tensor remains unchanged.
         public Tensor ApplyFunctionOnAllElements(Func<double, double> func)
         {
             Tensor result = new Tensor(BatchSize, Depth, Rows, Columns);
@@ -367,7 +427,10 @@ namespace NNLib
 
         /// <summary>
         /// Traverses all the possible indices of this and applies func.
-        /// First argument of func is this[indices] and second is auxMatrix[indices]. Parallelism is not allowed for aggregating purposes.
+        /// First argument of func is this[indices] and second is auxMatrix[indices].
+        /// Parallelism is not allowed for aggregating purposes.
+        /// Result is returned as new tensor
+        /// The content of the original tensor remains unchanged.
         /// </summary>
         public Tensor ApplyFunctionOnAllElements(Func<double, double, double> func, Tensor auxTensor, bool disableChecking = false)
         {
@@ -382,8 +445,28 @@ namespace NNLib
             return result;
         }
 
+        /// <summary>
+        /// Returns new tensor with the same dimensions, just all the elements are zeroed out.
+        /// </summary>
+        /// <returns></returns>
         public Tensor ZeroOut()
             => new Tensor(BatchSize, Depth, Rows, Columns);
+
+        
+        public string SerializeToString()
+        {
+            var strBuilder = new StringBuilder();
+            strBuilder.Append($"{{LENGTH:{data.Length}}}");
+
+            // using lossless format G17 and culture so that there are no 
+            // problems even during deserializing on different culture machines
+            for (int i = 0; i < data.Length - 1; i++)
+                strBuilder.Append(string.Format(CultureInfo.InvariantCulture, "{0:G17};", data[i]));
+
+            strBuilder.Append(string.Format(CultureInfo.InvariantCulture, "{0:G17}", data[^1]));
+
+            return strBuilder.ToString();
+        }
 
         public override string ToString()
         {

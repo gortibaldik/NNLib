@@ -1,12 +1,24 @@
-﻿namespace NNLib.Activations
+﻿using System;
+
+namespace NNLib.Activations
 {
     public class LinearActivation : IActivationLayer
     {
-        public ActivationFunctions Name { get => ActivationFunctions.Linear; }
+        private bool forwardPerformed = false;
+
         public Tensor ForwardPass(Tensor input)
-            => input;
+        {
+            forwardPerformed = true;
+            return input;
+        }
 
         public Tensor BackwardPass(Tensor previousGradient)
-            => previousGradient;
+        {
+            if (!forwardPerformed)
+                throw new InvalidOperationException("No forward pass before backward pass !");
+
+            forwardPerformed = false;
+            return previousGradient;
+        }
     }
 }

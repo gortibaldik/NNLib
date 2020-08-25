@@ -14,6 +14,9 @@ namespace NNLib.Optimizers
 
         private bool compiled;
 
+        /// <summary>
+        /// Creates new SGDOptimizer with the specified learning rate (which defaults to 0.01)
+        /// </summary>
         public SGDOptimizer(double learningRate = 0.01)
         {
             this.learningRate = learningRate;
@@ -47,6 +50,8 @@ namespace NNLib.Optimizers
 
         public void RememberGradient(int index, Tensor gradientWeights, Tensor gradientBias)
         {
+            // gradientsWeights[index] is null only when the layer at the specified index isn't 
+            // trainable
             if (gradientsWeights[index] != null)
             {
                 gradientsWeights[index] += gradientWeights;

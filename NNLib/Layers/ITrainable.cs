@@ -4,6 +4,9 @@ using System.Text;
 
 namespace NNLib.Layers
 {
+    /// <summary>
+    /// Interface representing a layer with trainable heights and biases
+    /// </summary>
     interface ITrainable
     {
         Tensor GetWeights();

@@ -16,6 +16,9 @@ namespace NNLib.Losses
             this.expectedOutput = expectedOutput;
             var res = 0D;
 
+            // since neuralOutput.ApplyFunctionOnAllElements is performed without parallelism
+            // we can call the function as an aggregate with var res collecting
+            // the result
             neuralOutput.ApplyFunctionOnAllElements((got, expected) =>
                 {
                     res += Math.Pow(got - expected, 2);

@@ -14,6 +14,9 @@ using NNLib.Optimizers;
 
 namespace NNLib
 {
+    /// <summary>
+    /// Basic sequential NeuralNetwork.
+    /// </summary>
     public class NeuralNetwork : IXmlSerializable
     {
         private readonly List<Layer> layers = new List<Layer>();
@@ -21,23 +24,47 @@ namespace NNLib
         private IOptimizer optimizer = null;
 
         private bool compiled = false;
+        private bool forwardPerformed = false;
         private int? sizeOfMiniBatch = null;
 
-        public Tensor LastPrediction { get; private set; }
+        /// <summary>
+        /// Provides the last output of the neural network
+        /// </summary>
+        public Tensor LastPrediction { get; private set; } = null;
 
-        private void DimCheck(ref int? inDim, int? expected)
+        /// <summary>
+        /// If actual is null, then its value is set to expected
+        /// otherwise check for actual == expected is performed
+        /// if it fails, FormatException is thrown
+        /// </summary>
+        private void DimCheck(ref int? actual, int expected)
         {
-            if (inDim != null)
+            if (actual != null)
             {
-                if (inDim != expected)
+                if (actual != expected)
                     throw new FormatException("Added layer doesn't fit expected dimensions!");
             }
             else
             {
-                inDim = expected;
+                actual = expected;
             }
         }
 
+        /// <summary>
+        /// Append the layer at the end of the neural network.
+        ///
+        /// In case of the first layer the input dimensions must be specified
+        /// In case of all the other layers, if some of the input dimensions are
+        /// specified they must match the current output dimensions of the network,
+        /// otherwise InvalidOperationException is thrown.
+        ///
+        /// Since the network is sequential check if the added layer isn't already
+        /// part of the network is performed.
+        /// 
+        /// There can be at most 1 layer with softmax activation in the neural network
+        /// and it must be the last one. Compilation is then supported only with 
+        /// SparseCategoricalCrossEntropy loss.
+        /// </summary>
         public void Add(Layer layer)
         {
             if (compiled)
@@ -50,7 +77,11 @@ namespace NNLib
             }
             else
             {
-                if (layers[^1] is IWithActivation withActivation && withActivation.ActivationUsed == ActivationFunctions.Softmax)
+                for (int i = 0; i < layers.Count; i++)
+                    if (object.ReferenceEquals(layers[i], layer) )
+                        throw new InvalidOperationException("Cannot add one layer more times to the sequential network !");
+
+                if (layers[^1] is IWithActivation withActivation && withActivation.ActivationUsed == nameof(Softmax))
                     throw new InvalidOperationException("Mode with adding more layers after softmax is not supported!");
 
                 // checking initialized and initializing unitialized dimensions
@@ -70,16 +101,21 @@ namespace NNLib
             layers.Add(layer);
         }
 
+        /// <summary>
+        /// Prepares the NeuralNetwork for Forward and Backward usage, methods Fit and Evaluate.
+        /// Checks for the last layer, if it is softmax, then it must be followed by SparseCategoricalCrossEntropy
+        /// loss function.
+        /// </summary>
         public void Compile(ILossLayer loss, IOptimizer optimizer)
         {
             this.loss = loss ?? throw new ArgumentException("Loss must be specified!");
             this.optimizer = optimizer ?? throw new ArgumentException("Optimizer must be specified!");
 
             var withActivation = layers[^1] as IWithActivation;
-            if (loss is SparseCategoricalCrossEntropy && (withActivation == null || withActivation.ActivationUsed != ActivationFunctions.Softmax))
+            if (loss is SparseCategoricalCrossEntropy && (withActivation == null || withActivation.ActivationUsed != nameof(Softmax)))
                 throw new InvalidOperationException("SparseCategoricalCrossEntropy loss is supported only when preceded by Softmax!");
 
-            if (withActivation != null && withActivation.ActivationUsed == ActivationFunctions.Softmax && !(loss is SparseCategoricalCrossEntropy))
+            if (withActivation != null && withActivation.ActivationUsed == nameof(Softmax) && !(loss is SparseCategoricalCrossEntropy))
                 throw new InvalidOperationException("Last layer with activation Softmax is supported only when followed by SparseCategoricalCrossEntropy!");
 
             foreach (var layer in layers)
@@ -88,9 +124,15 @@ namespace NNLib
                 optimizer.AddLayer(layer);
             }
 
+            optimizer.Compile();
             compiled = true;
         }
 
+        /// <summary>
+        /// Passes the input through all the layers and returns the result. (The input doesn't pass through loss)
+        /// The network doesn't have to be compiled. (Therefore we can predict from deserialized network without 
+        /// optimizer or loss specified)
+        /// </summary>
         public Tensor Predict(Tensor input)
         {
             if (input.Rows != layers[0].InRows || input.Columns != layers[0].InColumns || input.Depth != layers[0].InDepth)
@@ -103,8 +145,15 @@ namespace NNLib
             return currentOutput;
         }
 
+        /// <summary>
+        /// Passes the input through all the layers and the loss and returns the loss. 
+        /// The network has to be compiled in order to perform the ForwardPass
+        /// </summary>
         public double Forward(Tensor input, Tensor expectedOutput)
         {
+            if (!compiled)
+                throw new InvalidOperationException("The neural network must be compiled in order to be able to perform the ForwardPass !");
+
             if (input.Rows != layers[0].InRows)
                 throw new ArgumentException("Input dimensions doesn't match first layers inDimensions !");
 
@@ -113,11 +162,29 @@ namespace NNLib
                 currentOutput = layer.ForwardPass(currentOutput);
 
             LastPrediction = currentOutput;
+            forwardPerformed = true;
             return loss.ForwardPass(currentOutput, expectedOutput);
         }
 
+        /// <summary>
+        /// Performs the backward pass through the neural network, remembers all the 
+        /// gradients (the particular gradients are added together and the sizeOfMiniBatch
+        /// keeps track of the number of Backward passes performed in order to update the
+        /// weights correctly)
+        /// 
+        /// The forward pass must be performed before the backward pass and network must be 
+        /// compiled in order to do it.
+        /// </summary>
         public void Backward()
         {
+            if (!compiled)
+                throw new InvalidOperationException("The neural network must be compiled in order to be able to perform the ForwardPass !");
+
+            if (!forwardPerformed)
+                throw new InvalidOperationException("Cannot perform BackwardPass before the forward pass !");
+            
+            forwardPerformed = false;
+
             Tensor currentGradient = loss.BackwardPass();
 
             for (int i = layers.Count - 1; i >= 0; i--)
@@ -130,6 +197,24 @@ namespace NNLib
             sizeOfMiniBatch++;
         }
 
+        /// <summary>
+        /// Calls the optimizer specified during compilation to update all the weights of trainable layers.
+        /// Throws InvalidOperationException if network hasn't been compiled yet or hasn't performed BackwardPass
+        /// yet.
+        /// </summary>
+        public void UpdateWeights()
+        {
+            if (sizeOfMiniBatch == null)
+                throw new InvalidOperationException("Cannot update weights if the network hasn't been used yet !");
+
+            optimizer.CalculateAndUpdateWeights((int)sizeOfMiniBatch, layers);
+            sizeOfMiniBatch = null;
+        }
+
+        /// <summary>
+        /// Models fits on the specified dataset. Training happens in batches
+        /// of the specified batchSize and the dataset is traversed epochs times.
+        /// </summary>
         public void Fit(IDataset dataset, int epochs, int batchSize)
         {
             var epochNumber = 1;
@@ -154,11 +239,14 @@ namespace NNLib
 
                     var accuracy = GetAccuracy(valLabels, LastPrediction);
 
-                    Console.WriteLine($"Epoch {epochNumber++} loss : {loss} accuracy : {accuracy}");
+                    Console.WriteLine($"Epoch {epochNumber++} validation loss : {loss} validation accuracy : {accuracy}");
                 }
             }
         }
 
+        /// <summary>
+        /// Evaluates the performance (loss, accuracy) of the neural network on the test set of the dataset
+        /// </summary>
         public void Evaluate(IDataset dataset)
         {
             var (testInputs, testLabels) = dataset.GetTestSet();
@@ -167,7 +255,7 @@ namespace NNLib
 
             var accuracy = GetAccuracy(testLabels, LastPrediction);
 
-            Console.WriteLine($"Loss : {loss} accuracy : {accuracy}");
+            Console.WriteLine($"Test Loss : {loss} Test accuracy : {accuracy}");
         }
 
         private double GetAccuracy(Tensor trueDistro, Tensor probs)
@@ -199,11 +287,6 @@ namespace NNLib
             return (double)correct / trueDistro.BatchSize;
         }
 
-        public void UpdateWeights()
-        {
-            optimizer.CalculateAndUpdateWeights((int)sizeOfMiniBatch, layers);
-            sizeOfMiniBatch = null;
-        }
 
         public override string ToString()
         {
@@ -222,6 +305,8 @@ namespace NNLib
         {
             var layerFactory = new LayerFactory();
             reader.MoveToContent();
+            
+            // eats the attribute xml node and moves to the next one
             reader.ReadStartElement(nameof(NeuralNetwork));
             if (reader.NodeType == XmlNodeType.Whitespace)
                 reader.MoveToContent();
