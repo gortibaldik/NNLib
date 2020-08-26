@@ -64,7 +64,7 @@ namespace NNLib.Layers
         /// May cache the input in order to be prepared for the backward pass.
         /// Layer must be compiled in order to be able to perform the forward pass.
         /// </summary>
-        public abstract Tensor ForwardPass(Tensor input, bool training = false);
+        public abstract Tensor ForwardPass(Tensor input);
 
         /// <summary>
         /// Prepares the layer for the usage, initializes the weights if needed. Layer shouldn't

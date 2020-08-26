@@ -14,12 +14,19 @@ namespace NNLib.Layers
             if (rows < 0 || columns < 0 || depth < 0)
                 throw new ArgumentOutOfRangeException("Dimensions of the input tensor cannot be less than or equal to zero !");
 
-            OutDepth = depth;
-            InDepth = depth;
-            OutColumns = columns;
-            InColumns = columns;
-            OutRows = rows;
-            InRows = rows;
+            InDepth = OutDepth = depth;
+            InColumns = OutColumns = columns;
+            InRows = OutRows = rows;
+        }
+
+        /// <summary>
+        /// Creates new InputLayer accepting input tensor of the specified inputShape
+        /// </summary>
+        public InputLayer(Shape inputShape)
+        {
+            InDepth = OutDepth = inputShape.Depth;
+            InColumns = OutColumns = inputShape.Columns;
+            InRows = OutRows = inputShape.Rows;
         }
 
         /// <summary>
@@ -41,7 +48,7 @@ namespace NNLib.Layers
         public override void Compile()
             => compiled = true;
 
-        public override Tensor ForwardPass(Tensor input, bool training = false)
+        public override Tensor ForwardPass(Tensor input)
         {
             InputCheck(input);
 

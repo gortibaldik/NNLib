@@ -116,7 +116,7 @@ namespace NNLib.Layers
             compiled = true;
         }
 
-        public override Tensor ForwardPass(Tensor resultPrevious, bool training = false)
+        public override Tensor ForwardPass(Tensor resultPrevious)
         {
             InputCheck(resultPrevious);
             forwardPerformed = true;

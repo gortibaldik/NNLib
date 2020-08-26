@@ -2,7 +2,7 @@
 
 namespace NNLib.Layers
 {
-    public class LayerFactory
+    class LayerFactory
     {
         public virtual Layer CreateLayer(string name)
         {

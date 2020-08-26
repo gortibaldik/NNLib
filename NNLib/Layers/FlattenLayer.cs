@@ -16,11 +16,17 @@ namespace NNLib.Layers
 
         private int lastBatchSize;
 
+        /// <summary>
+        /// Creates new flatten layer with no input dimensions specified.
+        /// </summary>
         public FlattenLayer()
         {
             InDepth = InRows = InColumns = null;
         }
 
+        /// <summary>
+        /// Creates new flatten layer with the specified input dimensions
+        /// </summary>
         public FlattenLayer(int inDepth, int inRows, int inColumns) : this()
         {
             if (inRows < 0 || inColumns < 0 || inDepth < 0)
@@ -29,6 +35,16 @@ namespace NNLib.Layers
             InDepth = inDepth;
             InRows = inRows;
             InColumns = inColumns;
+        }
+
+        /// <summary>
+        /// Creates new flatten layer with the specified input shape.
+        /// </summary>
+        public FlattenLayer(Shape inputShape)
+        {
+            InDepth = inputShape.Depth;
+            InRows = inputShape.Rows;
+            InColumns = inputShape.Columns;
         }
 
         public override Tensor BackwardPass(Tensor previousGradient, out Tensor derivativeWeights, out Tensor derivativeBias)
@@ -47,7 +63,7 @@ namespace NNLib.Layers
         public override void Compile()
             => compiled = true;
 
-        public override Tensor ForwardPass(Tensor input, bool training = false)
+        public override Tensor ForwardPass(Tensor input)
         {
             InputCheck(input);
 

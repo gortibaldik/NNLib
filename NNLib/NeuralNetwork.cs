@@ -24,6 +24,7 @@ namespace NNLib
         private IOptimizer optimizer = null;
 
         private bool compiled = false;
+        private bool deserialized = false;
         private bool forwardPerformed = false;
         private int? sizeOfMiniBatch = null;
 
@@ -130,11 +131,14 @@ namespace NNLib
 
         /// <summary>
         /// Passes the input through all the layers and returns the result. (The input doesn't pass through loss)
-        /// The network doesn't have to be compiled. (Therefore we can predict from deserialized network without 
+        /// If we use the deserialized network, it doesn't have to be compiled. (Therefore we can predict from deserialized network without 
         /// optimizer or loss specified)
         /// </summary>
         public Tensor Predict(Tensor input)
         {
+            if (!deserialized && !compiled)
+                throw new InvalidOperationException("Cannot predict from the non-compiled, non-deserialized neural network !");
+
             if (input.Rows != layers[0].InRows || input.Columns != layers[0].InColumns || input.Depth != layers[0].InDepth)
                 throw new ArgumentException("Input dimensions doesn't match first layers inDimensions !");
 
@@ -149,7 +153,7 @@ namespace NNLib
         /// Passes the input through all the layers and the loss and returns the loss. 
         /// The network has to be compiled in order to perform the ForwardPass
         /// </summary>
-        public double Forward(Tensor input, Tensor expectedOutput)
+        internal double Forward(Tensor input, Tensor expectedOutput)
         {
             if (!compiled)
                 throw new InvalidOperationException("The neural network must be compiled in order to be able to perform the ForwardPass !");
@@ -175,7 +179,7 @@ namespace NNLib
         /// The forward pass must be performed before the backward pass and network must be 
         /// compiled in order to do it.
         /// </summary>
-        public void Backward()
+        internal void Backward()
         {
             if (!compiled)
                 throw new InvalidOperationException("The neural network must be compiled in order to be able to perform the ForwardPass !");
@@ -202,7 +206,7 @@ namespace NNLib
         /// Throws InvalidOperationException if network hasn't been compiled yet or hasn't performed BackwardPass
         /// yet.
         /// </summary>
-        public void UpdateWeights()
+        internal void UpdateWeights()
         {
             if (sizeOfMiniBatch == null)
                 throw new InvalidOperationException("Cannot update weights if the network hasn't been used yet !");
@@ -218,8 +222,8 @@ namespace NNLib
         public void Fit(IDataset dataset, int epochs, int batchSize)
         {
             var epochNumber = 1;
-            dataset.Epochs = epochs;
-            dataset.BatchSize = batchSize;
+            dataset.Epochs = epochs > 0 ? epochs : throw new ArgumentOutOfRangeException("The number of epochs must be positive number !");
+            dataset.BatchSize = batchSize > 0 ? batchSize : throw new ArgumentOutOfRangeException("The number of epochs must be positive number !");
             while (!dataset.EndTraining)
             {
                 var (trainInputs, trainLabels) = dataset.GetBatch();
@@ -327,10 +331,15 @@ namespace NNLib
                 if (reader.NodeType == XmlNodeType.Whitespace)
                     reader.MoveToContent();
             }
+
+            deserialized = true;
         }
 
         public void WriteXml(XmlWriter writer)
         {
+            if (!compiled && !deserialized)
+                throw new InvalidOperationException("Cannot serialize non-initialized network !");
+                
             foreach (var layer in layers)
             {
                 var serializable = layer as IXmlSerializable;

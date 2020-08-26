@@ -1,11 +1,9 @@
 ﻿//#define FORCE_PARALLELISM
-
 using System;
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
-using System.Xml.Schema;
+
 
 namespace NNLib
 {
@@ -183,7 +181,7 @@ namespace NNLib
         public static Tensor operator *(Tensor t1, Tensor t2)
         {
             if (t1.Columns != t2.Rows)
-                throw new ArgumentException($"TENSOR MULTIPLICATION : {nameof(t1.Columns)} not equal to {nameof(t2.Rows)} !");
+                throw new InvalidOperationException($"TENSOR MULTIPLICATION : {nameof(t1.Columns)} not equal to {nameof(t2.Rows)} !");
 
             if (t1.BatchSize == t2.BatchSize)
                 return _sameBatchSizeMultiplication(t1, t2);
@@ -314,7 +312,7 @@ namespace NNLib
         private static Tensor elementWiseOp(Tensor t1, Tensor t2, Func<double, double, double> func, string nameOfOperation)
         {
             if (t1.Rows != t2.Rows)
-                throw new ArgumentException($"TENSOR {nameOfOperation} : {nameof(t1.Rows)}:{t1.Rows} not equal to {nameof(t2.Rows)}:{t2.Rows} !");
+                throw new InvalidOperationException($"TENSOR {nameOfOperation} : {nameof(t1.Rows)}:{t1.Rows} not equal to {nameof(t2.Rows)}:{t2.Rows} !");
 
             var result = new Tensor(t1.BatchSize, t1.Depth, t1.Rows, t1.Columns);
 
