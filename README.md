@@ -10,6 +10,7 @@ The main part of the environment is the class ```NeuralNetwork``` which holds al
 #### Adding layers to neural network:
 There are currently 3 types of available layers : ```DenseLayer```, ```FlattenLayer``` and ```InputLayer```.
 The first layer must have specified input dimensions. If any other layers input shape is specified it must match the last networks layers output shape. The network checks for equality of references, therefore it isn't possible to add one instance of any layer multiple times.
+
 ```csharp
 var net = new NeuralNetwork();
 
@@ -20,7 +21,8 @@ net.Add(new Flatten(new Shape(1, 28, 28));
 // specify the input shape
 net.Add(new DenseLayer(100, new ReLU()));
 net.Add(new DenseLayer(100, new ReLU()));
-net.Add(new DenseLayer(10, new Softmax()));```
+net.Add(new DenseLayer(10, new Softmax()));
+```
 
 #### Training and predicting:
 There are 4 methods of neural network which the user can use :
@@ -110,4 +112,4 @@ and 3 methods needed to be implemented :
 	- ```(Tensor Input, Tensor Label) GetValidation();```
 		- the dataset should provide 2 tensors with all the validation dataPoints stacked in ```BatchSize``` dimension of ```Tensor Input``` and all validation dataLabels in ```BatchSize``` dimension of ```Tensor Label```
 	- ```(Tensor Input, Tensor Label) GetTestSet();```
-	- 		- the dataset should provide 2 tensors with all the test dataPoints stacked in ```BatchSize``` dimension of ```Tensor Input``` and all test dataLabels in ```BatchSize``` dimension of ```Tensor Label```
+ 		- the dataset should provide 2 tensors with all the test dataPoints stacked in ```BatchSize``` dimension of ```Tensor Input``` and all test dataLabels in ```BatchSize``` dimension of ```Tensor Label```
