@@ -5,7 +5,7 @@ using NNLib;
 
 namespace NNMnist
 {
-    class MNISTDataset : IDataset
+    public class MNISTDataset : IDataset
     {
         private MNISTDatasetLoader trainLoader;
         private MNISTDatasetLoader testLoader;
