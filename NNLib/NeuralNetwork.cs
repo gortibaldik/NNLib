@@ -9,8 +9,10 @@ using NNLib.Activations;
 using NNLib.Layers;
 using NNLib.Losses;
 using NNLib.Optimizers;
+using NNLib.Datasets;
 
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("NNLibXUnitTest")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("NNMnist")]
 
 namespace NNLib
 {
